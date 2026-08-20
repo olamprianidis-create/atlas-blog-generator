@@ -7,6 +7,8 @@ interface StepOneOutlineProps {
   onSelectCategory: (category: Category) => void;
   prompt: string;
   onPromptChange: (value: string) => void;
+  referenceKeywords: string;
+  onReferenceKeywordsChange: (value: string) => void;
   isLoading: boolean;
   error: string | null;
   onGenerate: () => void;
@@ -17,6 +19,8 @@ export default function StepOneOutline({
   onSelectCategory,
   prompt,
   onPromptChange,
+  referenceKeywords,
+  onReferenceKeywordsChange,
   isLoading,
   error,
   onGenerate,
@@ -49,6 +53,24 @@ export default function StepOneOutline({
           rows={6}
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+      </div>
+
+      <div className="mt-6">
+        <label htmlFor="reference-keywords" className="mb-2 block text-sm font-medium text-slate-700">
+          Reference keywords <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <input
+          id="reference-keywords"
+          type="text"
+          value={referenceKeywords}
+          onChange={(event) => onReferenceKeywordsChange(event.target.value)}
+          placeholder="e.g., fundraising, startup funding, venture capital"
+          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <p className="mt-1.5 text-xs text-slate-400">
+          Have keyword ideas already? Drop them here — Claude will research around them and show how
+          they compare to what it finds. Not required.
+        </p>
       </div>
 
       {error && (

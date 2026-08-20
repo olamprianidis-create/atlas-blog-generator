@@ -18,13 +18,12 @@ export interface BlogOutline {
 
 export interface OutlineGenerationResult {
   outline: BlogOutline;
-  suggestedKeywords: string[];
 }
 
 interface GenerateOutlineInput {
   categoryLabel: string;
   topic: string;
-  baseKeywords: string[];
+  keywords: string[];
   research: ResearchQuery[];
 }
 
@@ -54,7 +53,6 @@ function buildMockResult({ categoryLabel, topic }: GenerateOutlineInput): Outlin
       ],
       cta: "[MOCK] Ready to put this into practice? Start with step one today.",
     },
-    suggestedKeywords: [`${topic} guide`, `${topic} tips`, `${categoryLabel.toLowerCase()} for beginners`],
   };
 }
 
@@ -71,7 +69,7 @@ export async function generateOutline(input: GenerateOutlineInput): Promise<Outl
 
 Category: ${input.categoryLabel}
 Topic / user prompt: ${input.topic}
-Base keywords: ${input.baseKeywords.join(", ") || "(none provided)"}
+Target keywords (from keyword research — weave these into the outline naturally): ${input.keywords.join(", ") || "(none provided)"}
 
 Research findings:
 ${researchSummary}
@@ -85,10 +83,8 @@ Produce a structured outline with these exact sections:
 - takeaways: an array of 3-5 key takeaway bullet points
 - cta: a single call-to-action sentence
 
-Also suggest 3-5 additional long-tail keyword phrases specifically relevant to this topic, distinct from the base keywords, as "suggestedKeywords".
-
 Respond with ONLY valid JSON in this exact shape, no markdown fences, no commentary:
-{"outline": {"hook": "...", "quickAnswer": "...", "topicBreakdown": ["..."], "example": "...", "faqs": [{"question": "...", "answer": "..."}], "takeaways": ["..."], "cta": "..."}, "suggestedKeywords": ["..."]}`;
+{"outline": {"hook": "...", "quickAnswer": "...", "topicBreakdown": ["..."], "example": "...", "faqs": [{"question": "...", "answer": "..."}], "takeaways": ["..."], "cta": "..."}}`;
 
   return generateJSON<OutlineGenerationResult>(prompt, mockValue, {
     maxTokens: 2048,

@@ -10,12 +10,14 @@ import StepPlaceholder from "../components/steps/StepPlaceholder";
 import { Category, StepNumber } from "../utils/types";
 import type { ResearchQuery } from "../utils/webSearch";
 import type { BlogOutline } from "../utils/outline";
+import type { KeywordResearchResult } from "../utils/keywordResearch";
 import type { QualityCheckResult } from "../utils/qualityChecklist";
 import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview } from "../utils/timezones";
 
 interface GenerationState {
   research: ResearchQuery[];
   outline: BlogOutline;
+  keywordResearch: KeywordResearchResult;
   keywords: KeywordItem[];
   originalPrompt: string;
   extractedTopic: string;
@@ -24,8 +26,7 @@ interface GenerationState {
 interface GenerateOutlineApiResponse {
   research: ResearchQuery[];
   outline: BlogOutline;
-  baseKeywords: string[];
-  suggestedKeywords: string[];
+  keywordResearch: KeywordResearchResult;
   originalPrompt: string;
   extractedTopic: string;
 }
@@ -54,6 +55,7 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [referenceKeywords, setReferenceKeywords] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generation, setGeneration] = useState<GenerationState | null>(null);
@@ -88,7 +90,11 @@ export default function Home() {
       const response = await fetch("/api/generate-outline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: selectedCategory, prompt }),
+        body: JSON.stringify({
+          category: selectedCategory,
+          prompt,
+          userReferenceKeywords: referenceKeywords.trim() || undefined,
+        }),
       });
 
       const data = await response.json();
@@ -97,15 +103,22 @@ export default function Home() {
         throw new Error(data.error ?? `Request failed with status ${response.status}`);
       }
 
-      const { research, outline, baseKeywords, suggestedKeywords, originalPrompt, extractedTopic } =
+      const { research, outline, keywordResearch, originalPrompt, extractedTopic } =
         data as GenerateOutlineApiResponse;
 
+      const recommendedTextSet = new Set(keywordResearch.recommendations.map((t) => t.toLowerCase()));
       const keywords: KeywordItem[] = [
-        ...baseKeywords.map((text) => ({ text, isSuggested: false })),
-        ...suggestedKeywords.map((text) => ({ text, isSuggested: true })),
+        ...keywordResearch.recommendations.map((text): KeywordItem => ({
+          text,
+          isSuggested: true,
+          source: "recommended",
+        })),
+        ...keywordResearch.userKeywordsAnalyzed
+          .filter((k) => !recommendedTextSet.has(k.keyword.toLowerCase()))
+          .map((k): KeywordItem => ({ text: k.keyword, isSuggested: false, source: "reference" })),
       ];
 
-      setGeneration({ research, outline, keywords, originalPrompt, extractedTopic });
+      setGeneration({ research, outline, keywordResearch, keywords, originalPrompt, extractedTopic });
       setKeywordsDraft(keywords.map((k) => k.text).join(", "));
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : "Generation failed for an unknown reason.");
@@ -142,6 +155,19 @@ export default function Home() {
     setCurrentStep(2);
   }
 
+  function handleAddDiscoveredKeyword(text: string) {
+    if (!generation) return;
+    if (generation.keywords.some((k) => k.text.toLowerCase() === text.toLowerCase())) return;
+
+    const updatedKeywords: KeywordItem[] = [
+      ...generation.keywords,
+      { text, isSuggested: false, source: "custom" },
+    ];
+
+    setGeneration({ ...generation, keywords: updatedKeywords });
+    setKeywordsDraft(updatedKeywords.map((k) => k.text).join(", "));
+  }
+
   function handleStartOver() {
     setGeneration(null);
     setGenerateError(null);
@@ -153,6 +179,7 @@ export default function Home() {
     setGenerateError(null);
     setIsEditingKeywords(false);
     setPrompt("");
+    setReferenceKeywords("");
     setSelectedCategory(null);
     setArticleData(null);
     setArticleError(null);
@@ -277,6 +304,7 @@ export default function Home() {
           publishDateIso,
           originalPrompt: generation.originalPrompt,
           outline: generation.outline,
+          keywordResearch: generation.keywordResearch,
         }),
       });
 
@@ -334,6 +362,7 @@ export default function Home() {
         <StepOneResults
           research={generation.research}
           outline={generation.outline}
+          keywordResearch={generation.keywordResearch}
           keywords={generation.keywords}
           extractedTopic={generation.extractedTopic}
           isEditingKeywords={isEditingKeywords}
@@ -341,6 +370,7 @@ export default function Home() {
           onToggleEditKeywords={handleToggleEditKeywords}
           onKeywordsDraftChange={setKeywordsDraft}
           onSaveKeywords={handleSaveKeywords}
+          onAddDiscoveredKeyword={handleAddDiscoveredKeyword}
           onApprove={handleApprove}
           onStartOver={handleStartOver}
         />
@@ -353,6 +383,8 @@ export default function Home() {
         onSelectCategory={handleSelectCategory}
         prompt={prompt}
         onPromptChange={setPrompt}
+        referenceKeywords={referenceKeywords}
+        onReferenceKeywordsChange={setReferenceKeywords}
         isLoading={isLoading}
         error={generateError}
         onGenerate={handleGenerate}

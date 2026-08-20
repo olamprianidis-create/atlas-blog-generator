@@ -14,6 +14,7 @@ interface ScheduleArticleRequestBody {
   publishDateIso?: unknown;
   originalPrompt?: unknown;
   outline?: unknown;
+  keywordResearch?: unknown;
 }
 
 interface ScheduleArticleResponse {
@@ -44,6 +45,7 @@ export default async function handler(
     publishDateIso,
     originalPrompt,
     outline,
+    keywordResearch,
   } = req.body as ScheduleArticleRequestBody;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -93,15 +95,29 @@ export default async function handler(
       throw articleError ?? new Error("Insert into scheduled_articles returned no row");
     }
 
-    const { error: historyError } = await supabase.from("article_history").insert({
+    const historyRow = {
       user_prompt: typeof originalPrompt === "string" ? originalPrompt : "",
       outline_generated: (outline as BlogOutline) ?? null,
       keywords_used: keywords,
       article_id: articleRow.id,
-    });
+    };
+
+    // keyword_research is an optional column (see
+    // supabase/migrations/0003_keyword_research.sql) — degrade gracefully
+    // to storing history without it if that migration hasn't been run yet.
+    const { error: historyError } = await supabase
+      .from("article_history")
+      .insert({ ...historyRow, keyword_research: keywordResearch ?? null });
 
     if (historyError) {
-      throw historyError;
+      console.warn(
+        "article_history insert with keyword_research failed, retrying without it (run supabase/migrations/0003_keyword_research.sql):",
+        historyError.message
+      );
+      const { error: fallbackError } = await supabase.from("article_history").insert(historyRow);
+      if (fallbackError) {
+        throw fallbackError;
+      }
     }
 
     return res.status(200).json({ articleId: articleRow.id as string, publishDate: publishDateIso });

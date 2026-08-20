@@ -1,15 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { runResearch, ResearchQuery } from "../../utils/webSearch";
 import { generateOutline, BlogOutline } from "../../utils/outline";
-import { getBaseKeywords, dedupeSuggested } from "../../utils/keywords";
+import { researchKeywords, KeywordResearchResult } from "../../utils/keywordResearch";
 import { extractTopicPhrase } from "../../utils/topicExtraction";
 import { Category, CATEGORIES } from "../../utils/types";
 
 interface GenerateOutlineResponse {
   research: ResearchQuery[];
   outline: BlogOutline;
-  baseKeywords: string[];
-  suggestedKeywords: string[];
+  keywordResearch: KeywordResearchResult;
   originalPrompt: string;
   extractedTopic: string;
 }
@@ -27,10 +26,17 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt } = req.body as { category?: unknown; prompt?: unknown };
+  const { category, prompt, userReferenceKeywords } = req.body as {
+    category?: unknown;
+    prompt?: unknown;
+    userReferenceKeywords?: unknown;
+  };
 
   if (category !== null && category !== undefined && !isCategory(category)) {
     return res.status(400).json({ error: "Invalid category" });
+  }
+  if (userReferenceKeywords !== undefined && typeof userReferenceKeywords !== "string") {
+    return res.status(400).json({ error: "Invalid userReferenceKeywords" });
   }
 
   const selectedCategory = isCategory(category) ? category : null;
@@ -45,27 +51,28 @@ export default async function handler(
       ? CATEGORIES.find((c) => c.value === selectedCategory)!.label
       : "General";
     const topic = promptText || categoryLabel;
-    const baseKeywords = getBaseKeywords(selectedCategory);
 
     // Short 2-4 word phrase used for search queries, kept separate from
     // the full prompt/topic used for outline generation.
     const extractedTopic = promptText ? await extractTopicPhrase(promptText) : categoryLabel;
+    const searchTopic = extractedTopic || topic;
 
-    const research = await runResearch(categoryLabel, extractedTopic);
-    const { outline, suggestedKeywords } = await generateOutline({
+    const [research, keywordResearch] = await Promise.all([
+      runResearch(categoryLabel, extractedTopic),
+      researchKeywords(searchTopic, typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined),
+    ]);
+
+    const { outline } = await generateOutline({
       categoryLabel,
       topic,
-      baseKeywords,
+      keywords: keywordResearch.recommendations,
       research,
     });
-
-    const suggested = dedupeSuggested(baseKeywords, suggestedKeywords);
 
     return res.status(200).json({
       research,
       outline,
-      baseKeywords,
-      suggestedKeywords: suggested,
+      keywordResearch,
       originalPrompt: promptText,
       extractedTopic,
     });
