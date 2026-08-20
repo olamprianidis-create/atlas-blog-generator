@@ -141,13 +141,33 @@ export async function generateJSON<T>(
       "You respond with strictly valid JSON only, matching the requested shape exactly. No markdown code fences, no commentary outside the JSON object.",
   });
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  // Strip markdown code fences the model may add despite instructions
+  // not to (```json ... ``` or plain ``` ... ```).
+  const stripped = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/, "")
+    .trim();
 
-  if (!jsonMatch) {
-    throw new Error("Anthropic response did not contain valid JSON");
+  const firstBrace = stripped.indexOf("{");
+  const lastBrace = stripped.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+    throw new Error(
+      `Anthropic response did not contain valid JSON. First 300 chars: ${stripped.slice(0, 300)}`
+    );
   }
 
-  return JSON.parse(jsonMatch[0]) as T;
+  const candidate = stripped.slice(firstBrace, lastBrace + 1);
+
+  try {
+    return JSON.parse(candidate) as T;
+  } catch (error) {
+    const parseMessage = error instanceof Error ? error.message : "unknown parse error";
+    throw new Error(
+      `Anthropic response was not valid JSON (${parseMessage}). Length: ${candidate.length}. Last 300 chars: ${candidate.slice(-300)}`
+    );
+  }
 }
 
 export async function testConnection(): Promise<boolean> {
