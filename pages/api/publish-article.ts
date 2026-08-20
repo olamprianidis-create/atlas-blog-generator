@@ -25,8 +25,6 @@ export default async function handler(
   const result = await publishArticleById(articleId);
 
   if (!result.success) {
-    // Article stays "scheduled" — publishArticleById never updates status
-    // unless the webhook call actually succeeded.
     return res.status(502).json({ error: result.error ?? "Publish failed" });
   }
 
