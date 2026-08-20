@@ -69,15 +69,15 @@ export async function generateText(
   const {
     model = DEFAULT_MODEL,
     maxTokens = 4096,
-    temperature = 1,
     system,
   } = options;
 
+  // `temperature` is deprecated/rejected for this model — deliberately
+  // not forwarded to the API even if a caller passes it in `options`.
   return withRetry(async () => {
     const response = await client!.messages.create({
       model,
       max_tokens: maxTokens,
-      temperature,
       system,
       messages: [{ role: "user", content: prompt }],
     });
