@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { generateJSON } from "./anthropic";
+import { generateTextChecked } from "./anthropic";
 import type { BlogOutline } from "./outline";
 import type { ResearchQuery } from "./webSearch";
 import { PLACEHOLDER_RELATED_ARTICLES } from "./relatedArticles";
@@ -163,6 +163,48 @@ Follow @atlasnetwork.club on Instagram for more practical ${categoryLower} guida
   return { title, markdown };
 }
 
+const MARKDOWN_DELIMITER = "===MARKDOWN===";
+
+function buildMockDelimitedText(value: ArticleGenerationResult): string {
+  return `TITLE: ${value.title}\nMETA_DESCRIPTION: ${value.metaDescription}\n${MARKDOWN_DELIMITER}\n${value.markdown}`;
+}
+
+// Parses the TITLE / META_DESCRIPTION / ===MARKDOWN=== plain-text format
+// instead of JSON — asking a model to embed several paragraphs of
+// markdown inside a JSON string is fragile (it sometimes emits literal
+// newlines instead of escaped \n, breaking JSON.parse). This format
+// sidesteps that entirely since only short single-line fields need any
+// escaping discipline at all.
+function parseArticleResponse(text: string): ArticleGenerationResult {
+  const delimiterIndex = text.indexOf(MARKDOWN_DELIMITER);
+
+  if (delimiterIndex === -1) {
+    throw new Error(
+      `Article response missing ${MARKDOWN_DELIMITER} delimiter. First 300 chars: ${text.slice(0, 300)}`
+    );
+  }
+
+  const header = text.slice(0, delimiterIndex);
+  const markdown = text.slice(delimiterIndex + MARKDOWN_DELIMITER.length).trim();
+
+  const titleMatch = header.match(/TITLE:\s*(.+)/i);
+  const metaMatch = header.match(/META_DESCRIPTION:\s*(.+)/i);
+
+  if (!titleMatch || !metaMatch) {
+    throw new Error(`Article response missing TITLE or META_DESCRIPTION header. Header: ${header.slice(0, 300)}`);
+  }
+
+  if (!markdown) {
+    throw new Error("Article response had an empty markdown body after the delimiter.");
+  }
+
+  return {
+    title: titleMatch[1].trim(),
+    metaDescription: metaMatch[1].trim(),
+    markdown,
+  };
+}
+
 const TEMPLATE_PATH = path.join(process.cwd(), "Blog_Structure_Prompt_UPDATED.md");
 
 function loadTemplate(): string {
@@ -216,11 +258,24 @@ Related atlasnetwork.club articles available for internal linking:
 ${relatedArticlesList}
 ${editInstructionsBlock}
 
-Write the full article now. Respond with ONLY valid JSON, no markdown fences, no commentary, in this exact shape:
-{"title": "...", "markdown": "... full article in markdown, starting with a single # H1 ...", "metaDescription": "... 450-500 characters ..."}`;
+Hard requirements — the article will be rejected if any of these are missed:
+- Aim for 1,800-2,200 words (never under 1,600) — the floor is 1,500 and running short fails review, so write generously rather than tightly.
+- The closing CTA section's heading must be exactly "## What to Do Next" (this exact text — a checklist matches on it).
+- That section must literally mention "@atlasnetwork.club" and the word "Instagram".
+- Include roughly 8-10 external citation links total (spread across the body, e.g. "According to [Forbes](https://www.forbes.com/)..."), pointing to real, well-known, relevant domains for the category (e.g. Forbes, Harvard Business Review, Mayo Clinic, CDC, APA, ESPN, Pew Research, McKinsey). These external links must outnumber internal links by roughly 3:2 or more — internal links are capped at 2-3 in the body plus exactly 3 in Related Reading, so err toward more external citations, not fewer.
+- Weave in 2-3 of the related atlasnetwork.club articles above as natural in-body links, using their exact URLs, plus list all 3 again under a closing "## Related Reading" section as a markdown list.
 
-  return generateJSON<ArticleGenerationResult>(prompt, mockValue, {
-    maxTokens: 8192,
-    temperature: 0.8,
-  });
+Respond in EXACTLY this format — not JSON, this exact plain-text structure, because it gets parsed programmatically by splitting on the delimiter line:
+
+TITLE: <the article title, one line, no quotes>
+META_DESCRIPTION: <the meta description, one line, no quotes, aim for exactly 480 characters, must be between 450 and 500 — count carefully, this is checked>
+===MARKDOWN===
+<the full article markdown starts here, beginning with a single # H1, continuing to the end of your response — no closing delimiter needed>`;
+
+  const rawText = await generateTextChecked(prompt, { maxTokens: 16000 }, buildMockDelimitedText(mockValue));
+  const result = parseArticleResponse(rawText);
+
+  // Deterministic safety net — don't rely on the model hitting the
+  // character range precisely, since it sometimes runs short.
+  return { ...result, metaDescription: fitMetaDescription(result.metaDescription) };
 }

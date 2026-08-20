@@ -57,15 +57,12 @@ const MOCK_RESPONSE =
 // exponential backoff so callers don't each reimplement it. Pass
 // `mockValue` to get a realistic placeholder in mock mode instead of
 // the generic canned response.
-export async function generateText(
-  prompt: string,
-  options: GenerateOptions = {},
-  mockValue: string = MOCK_RESPONSE
-): Promise<string> {
-  if (MOCK_MODE) {
-    return mockValue;
-  }
+interface TextWithMeta {
+  text: string;
+  truncated: boolean;
+}
 
+async function generateTextWithMeta(prompt: string, options: GenerateOptions): Promise<TextWithMeta> {
   const {
     model = DEFAULT_MODEL,
     maxTokens = 4096,
@@ -83,8 +80,22 @@ export async function generateText(
     });
 
     const textBlock = response.content.find((block) => block.type === "text");
-    return textBlock && "text" in textBlock ? textBlock.text : "";
+    const text = textBlock && "text" in textBlock ? textBlock.text : "";
+    return { text, truncated: response.stop_reason === "max_tokens" };
   });
+}
+
+export async function generateText(
+  prompt: string,
+  options: GenerateOptions = {},
+  mockValue: string = MOCK_RESPONSE
+): Promise<string> {
+  if (MOCK_MODE) {
+    return mockValue;
+  }
+
+  const { text } = await generateTextWithMeta(prompt, options);
+  return text;
 }
 
 // Runs a single live web search via Claude's server-side web_search tool
@@ -122,6 +133,30 @@ export async function webSearch(query: string): Promise<string[]> {
   });
 }
 
+// Like generateText, but throws a clear error if the response got cut
+// off by hitting max_tokens instead of silently returning partial text.
+// Useful for callers that need a complete response to parse (JSON,
+// delimited formats) rather than free-form prose.
+export async function generateTextChecked(
+  prompt: string,
+  options: GenerateOptions = {},
+  mockValue: string = MOCK_RESPONSE
+): Promise<string> {
+  if (MOCK_MODE) {
+    return mockValue;
+  }
+
+  const { text, truncated } = await generateTextWithMeta(prompt, options);
+
+  if (truncated) {
+    throw new Error(
+      `Anthropic response was truncated (hit max_tokens=${options.maxTokens ?? 4096}) before completing. Increase maxTokens for this call.`
+    );
+  }
+
+  return text;
+}
+
 // Requests a JSON response from Claude and parses it. `mockValue` is
 // returned as-is in mock mode so callers can supply realistic placeholder
 // data without any real API call being made.
@@ -134,7 +169,7 @@ export async function generateJSON<T>(
     return mockValue;
   }
 
-  const text = await generateText(prompt, {
+  const text = await generateTextChecked(prompt, {
     ...options,
     system:
       options.system ??

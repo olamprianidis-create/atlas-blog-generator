@@ -7,6 +7,19 @@ export interface MarkdownLink {
 
 const LINK_PATTERN = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 
+// Checks the actual hostname, not a substring match — otherwise a link
+// like https://www.instagram.com/atlasnetwork.club (an Instagram profile,
+// not a blog article) gets misclassified as an internal atlasnetwork.club
+// link just because the string appears in the path.
+function isInternalUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return host === "atlasnetwork.club";
+  } catch {
+    return false;
+  }
+}
+
 export function extractLinks(markdown: string): MarkdownLink[] {
   const links: MarkdownLink[] = [];
   let match: RegExpExecArray | null;
@@ -17,7 +30,7 @@ export function extractLinks(markdown: string): MarkdownLink[] {
     links.push({
       text,
       url,
-      isInternal: url.includes("atlasnetwork.club"),
+      isInternal: isInternalUrl(url),
       index: match.index,
     });
   }
