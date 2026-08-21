@@ -1,34 +1,28 @@
 import { useState } from "react";
 import Header from "../components/layout/Header";
 import Sidebar from "../components/layout/Sidebar";
-import StepOneOutline from "../components/steps/StepOneOutline";
-import StepOneResults, { KeywordItem } from "../components/steps/StepOneResults";
-import StepTwoReview from "../components/steps/StepTwoReview";
-import StepThreeArticle from "../components/steps/StepThreeArticle";
-import StepFourSchedule, { ScheduleResult } from "../components/steps/StepFourSchedule";
+import StepOneTopic from "../components/steps/StepOneTopic";
+import StepTwoImageKeywords, { KeywordItem } from "../components/steps/StepTwoImageKeywords";
+import StepThreeOutline from "../components/steps/StepThreeOutline";
+import StepFourArticle from "../components/steps/StepFourArticle";
+import StepFiveSchedule, { ScheduleResult } from "../components/steps/StepFiveSchedule";
 import StepPlaceholder from "../components/steps/StepPlaceholder";
 import { Category, StepNumber } from "../utils/types";
 import type { ResearchQuery } from "../utils/webSearch";
 import type { BlogOutline } from "../utils/outline";
 import type { KeywordResearchResult } from "../utils/keywordResearch";
 import type { QualityCheckResult } from "../utils/qualityChecklist";
+import { serializeOutline, parseOutlineText } from "../utils/outlineSerialize";
 import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview } from "../utils/timezones";
 
-interface GenerationState {
+interface ResearchKeywordsApiResponse {
   research: ResearchQuery[];
-  outline: BlogOutline;
   keywordResearch: KeywordResearchResult;
-  keywords: KeywordItem[];
-  originalPrompt: string;
   extractedTopic: string;
 }
 
 interface GenerateOutlineApiResponse {
-  research: ResearchQuery[];
   outline: BlogOutline;
-  keywordResearch: KeywordResearchResult;
-  originalPrompt: string;
-  extractedTopic: string;
 }
 
 interface GenerateArticleApiResponse {
@@ -53,17 +47,37 @@ interface ArticleRecord {
 
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
+
+  // Step 1: topic & prompt
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [prompt, setPrompt] = useState("");
+
+  // Step 2: image & keywords
+  const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [referenceKeywords, setReferenceKeywords] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  const [generation, setGeneration] = useState<GenerationState | null>(null);
+  const [isResearching, setIsResearching] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
+  const [keywordResearchResult, setKeywordResearchResult] = useState<KeywordResearchResult | null>(null);
+  const [researchQueries, setResearchQueries] = useState<ResearchQuery[]>([]);
+  const [extractedTopic, setExtractedTopic] = useState("");
+  const [keywords, setKeywords] = useState<KeywordItem[]>([]);
   const [isEditingKeywords, setIsEditingKeywords] = useState(false);
   const [keywordsDraft, setKeywordsDraft] = useState("");
+
+  // Step 3: outline approval
+  const [outline, setOutline] = useState<BlogOutline | null>(null);
+  const [outlineText, setOutlineText] = useState("");
+  const [isOutlineLoading, setIsOutlineLoading] = useState(false);
+  const [outlineError, setOutlineError] = useState<string | null>(null);
+
+  // Step 4: full article
   const [articleData, setArticleData] = useState<ArticleRecord | null>(null);
   const [isArticleLoading, setIsArticleLoading] = useState(false);
   const [articleError, setArticleError] = useState<string | null>(null);
+
+  // Step 5: schedule & store
   const [publishDate, setPublishDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -82,12 +96,59 @@ export default function Home() {
     setSelectedCategory((current) => (current === category ? null : category));
   }
 
-  async function handleGenerate() {
-    setIsLoading(true);
-    setGenerateError(null);
+  function handleProceedToStep2() {
+    setCurrentStep(2);
+    if (!keywordResearchResult) {
+      void handleRunResearch();
+    }
+  }
+
+  async function handleUploadImage(file: File) {
+    setIsUploadingImage(true);
+    setImageUploadError(null);
 
     try {
-      const response = await fetch("/api/generate-outline", {
+      const response = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": file.type, "X-Filename": file.name },
+        body: file,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? `Upload failed with status ${response.status}`);
+      }
+
+      setHeaderImageUrl(data.url as string);
+    } catch (error) {
+      setImageUploadError(error instanceof Error ? error.message : "Image upload failed for an unknown reason.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
+  function handleRemoveImage() {
+    setHeaderImageUrl(null);
+    setImageUploadError(null);
+  }
+
+  function buildKeywordItems(result: KeywordResearchResult): KeywordItem[] {
+    const recommendedTextSet = new Set(result.recommendations.map((t) => t.toLowerCase()));
+    return [
+      ...result.recommendations.map((text): KeywordItem => ({ text, isSuggested: true, source: "recommended" })),
+      ...result.userKeywordsAnalyzed
+        .filter((k) => !recommendedTextSet.has(k.keyword.toLowerCase()))
+        .map((k): KeywordItem => ({ text: k.keyword, isSuggested: false, source: "reference" })),
+    ];
+  }
+
+  async function handleRunResearch() {
+    setIsResearching(true);
+    setResearchError(null);
+
+    try {
+      const response = await fetch("/api/research-keywords", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -103,27 +164,18 @@ export default function Home() {
         throw new Error(data.error ?? `Request failed with status ${response.status}`);
       }
 
-      const { research, outline, keywordResearch, originalPrompt, extractedTopic } =
-        data as GenerateOutlineApiResponse;
+      const { research, keywordResearch, extractedTopic: newExtractedTopic } = data as ResearchKeywordsApiResponse;
 
-      const recommendedTextSet = new Set(keywordResearch.recommendations.map((t) => t.toLowerCase()));
-      const keywords: KeywordItem[] = [
-        ...keywordResearch.recommendations.map((text): KeywordItem => ({
-          text,
-          isSuggested: true,
-          source: "recommended",
-        })),
-        ...keywordResearch.userKeywordsAnalyzed
-          .filter((k) => !recommendedTextSet.has(k.keyword.toLowerCase()))
-          .map((k): KeywordItem => ({ text: k.keyword, isSuggested: false, source: "reference" })),
-      ];
-
-      setGeneration({ research, outline, keywordResearch, keywords, originalPrompt, extractedTopic });
-      setKeywordsDraft(keywords.map((k) => k.text).join(", "));
+      const newKeywords = buildKeywordItems(keywordResearch);
+      setKeywordResearchResult(keywordResearch);
+      setResearchQueries(research);
+      setExtractedTopic(newExtractedTopic);
+      setKeywords(newKeywords);
+      setKeywordsDraft(newKeywords.map((k) => k.text).join(", "));
     } catch (error) {
-      setGenerateError(error instanceof Error ? error.message : "Generation failed for an unknown reason.");
+      setResearchError(error instanceof Error ? error.message : "Keyword research failed for an unknown reason.");
     } finally {
-      setIsLoading(false);
+      setIsResearching(false);
     }
   }
 
@@ -132,8 +184,6 @@ export default function Home() {
   }
 
   function handleSaveKeywords() {
-    if (!generation) return;
-
     const edited = Array.from(
       new Set(
         keywordsDraft
@@ -143,44 +193,75 @@ export default function Home() {
       )
     );
 
-    setGeneration({
-      ...generation,
-      keywords: edited.map((text) => ({ text, isSuggested: false })),
-    });
+    setKeywords(edited.map((text) => ({ text, isSuggested: false })));
     setIsEditingKeywords(false);
-  }
-
-  function handleApprove() {
-    if (!generation) return;
-    setCurrentStep(2);
   }
 
   function handleAddDiscoveredKeyword(text: string) {
-    if (!generation) return;
-    if (generation.keywords.some((k) => k.text.toLowerCase() === text.toLowerCase())) return;
+    if (keywords.some((k) => k.text.toLowerCase() === text.toLowerCase())) return;
 
-    const updatedKeywords: KeywordItem[] = [
-      ...generation.keywords,
-      { text, isSuggested: false, source: "custom" },
-    ];
-
-    setGeneration({ ...generation, keywords: updatedKeywords });
+    const updatedKeywords: KeywordItem[] = [...keywords, { text, isSuggested: false, source: "custom" }];
+    setKeywords(updatedKeywords);
     setKeywordsDraft(updatedKeywords.map((k) => k.text).join(", "));
   }
 
-  function handleStartOver() {
-    setGeneration(null);
-    setGenerateError(null);
-    setIsEditingKeywords(false);
+  async function handleProceedToStep3() {
+    setCurrentStep(3);
+    setIsOutlineLoading(true);
+    setOutlineError(null);
+
+    try {
+      const response = await fetch("/api/generate-outline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: selectedCategory,
+          prompt,
+          extractedTopic,
+          keywords: keywords.map((k) => k.text),
+          research: researchQueries,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? `Request failed with status ${response.status}`);
+      }
+
+      const { outline: newOutline } = data as GenerateOutlineApiResponse;
+      setOutline(newOutline);
+      setOutlineText(serializeOutline(newOutline));
+    } catch (error) {
+      setOutlineError(error instanceof Error ? error.message : "Outline generation failed for an unknown reason.");
+    } finally {
+      setIsOutlineLoading(false);
+    }
+  }
+
+  function handleBackToStep2() {
+    setCurrentStep(2);
   }
 
   function handleRestart() {
-    setGeneration(null);
-    setGenerateError(null);
-    setIsEditingKeywords(false);
-    setPrompt("");
-    setReferenceKeywords("");
     setSelectedCategory(null);
+    setPrompt("");
+    setHeaderImageUrl(null);
+    setIsUploadingImage(false);
+    setImageUploadError(null);
+    setReferenceKeywords("");
+    setIsResearching(false);
+    setResearchError(null);
+    setKeywordResearchResult(null);
+    setResearchQueries([]);
+    setExtractedTopic("");
+    setKeywords([]);
+    setIsEditingKeywords(false);
+    setKeywordsDraft("");
+    setOutline(null);
+    setOutlineText("");
+    setIsOutlineLoading(false);
+    setOutlineError(null);
     setArticleData(null);
     setArticleError(null);
     setScheduleResult(null);
@@ -197,32 +278,7 @@ export default function Home() {
     setCurrentStep(1);
   }
 
-  function handleAddKeywordStep2(text: string) {
-    if (!generation) return;
-    if (generation.keywords.some((k) => k.text.toLowerCase() === text.toLowerCase())) return;
-
-    setGeneration({
-      ...generation,
-      keywords: [...generation.keywords, { text, isSuggested: false }],
-    });
-  }
-
-  function handleRemoveKeywordStep2(text: string) {
-    if (!generation) return;
-
-    setGeneration({
-      ...generation,
-      keywords: generation.keywords.filter((k) => k.text !== text),
-    });
-  }
-
-  function handleEditKeywordsFromStep2() {
-    setCurrentStep(1);
-  }
-
-  async function fetchArticle(editInstructions?: string) {
-    if (!generation) return;
-
+  async function fetchArticle(outlineArg: BlogOutline, editInstructions?: string) {
     setIsArticleLoading(true);
     setArticleError(null);
 
@@ -232,10 +288,10 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: selectedCategory,
-          topic: generation.extractedTopic || generation.originalPrompt,
-          outline: generation.outline,
-          keywords: generation.keywords.map((k) => k.text),
-          research: generation.research,
+          topic: extractedTopic || prompt,
+          outline: outlineArg,
+          keywords: keywords.map((k) => k.text),
+          research: researchQueries,
           editInstructions,
         }),
       });
@@ -257,21 +313,25 @@ export default function Home() {
     }
   }
 
-  function handleApproveAndGenerate() {
-    setCurrentStep(3);
-    void fetchArticle();
+  function handleApproveOutline() {
+    const parsed = parseOutlineText(outlineText);
+    setOutline(parsed);
+    setCurrentStep(4);
+    void fetchArticle(parsed);
   }
 
   function handleRequestEdits(instructions: string) {
-    void fetchArticle(instructions);
+    if (!outline) return;
+    void fetchArticle(outline, instructions);
   }
 
   function handleRetryArticle() {
-    void fetchArticle();
+    if (!outline) return;
+    void fetchArticle(outline);
   }
 
-  function handleBackToStepTwo() {
-    setCurrentStep(2);
+  function handleBackToStep3() {
+    setCurrentStep(3);
   }
 
   function handleApproveAndSchedule() {
@@ -279,11 +339,11 @@ export default function Home() {
     setScheduleError(null);
     setIsPublished(false);
     setPublishError(null);
-    setCurrentStep(4);
+    setCurrentStep(5);
   }
 
   async function handleSchedule() {
-    if (!generation || !articleData || !selectedCategory) return;
+    if (!articleData || !selectedCategory) return;
 
     setIsScheduling(true);
     setScheduleError(null);
@@ -299,12 +359,13 @@ export default function Home() {
           markdown: articleData.markdown,
           html: articleData.html,
           metaDescription: articleData.metaDescription,
-          keywords: generation.keywords.map((k) => k.text),
+          keywords: keywords.map((k) => k.text),
           category: selectedCategory,
           publishDateIso,
-          originalPrompt: generation.originalPrompt,
-          outline: generation.outline,
-          keywordResearch: generation.keywordResearch,
+          originalPrompt: prompt,
+          outline,
+          keywordResearch: keywordResearchResult,
+          imageUrl: headerImageUrl,
         }),
       });
 
@@ -325,8 +386,8 @@ export default function Home() {
     }
   }
 
-  function handleBackToArticle() {
-    setCurrentStep(3);
+  function handleBackToStep4() {
+    setCurrentStep(4);
   }
 
   async function handlePublishNow() {
@@ -356,78 +417,76 @@ export default function Home() {
     }
   }
 
-  function renderStepOne() {
-    if (generation) {
+  function renderMain() {
+    if (currentStep === 1) {
       return (
-        <StepOneResults
-          research={generation.research}
-          outline={generation.outline}
-          keywordResearch={generation.keywordResearch}
-          keywords={generation.keywords}
-          extractedTopic={generation.extractedTopic}
+        <StepOneTopic
+          selectedCategory={selectedCategory}
+          onSelectCategory={handleSelectCategory}
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          onNext={handleProceedToStep2}
+        />
+      );
+    }
+
+    if (currentStep === 2) {
+      return (
+        <StepTwoImageKeywords
+          headerImageUrl={headerImageUrl}
+          isUploadingImage={isUploadingImage}
+          imageUploadError={imageUploadError}
+          onUploadImage={handleUploadImage}
+          onRemoveImage={handleRemoveImage}
+          referenceKeywords={referenceKeywords}
+          onReferenceKeywordsChange={setReferenceKeywords}
+          keywordResearch={keywordResearchResult}
+          isResearching={isResearching}
+          researchError={researchError}
+          onRunResearch={handleRunResearch}
+          keywords={keywords}
           isEditingKeywords={isEditingKeywords}
           keywordsDraft={keywordsDraft}
           onToggleEditKeywords={handleToggleEditKeywords}
           onKeywordsDraftChange={setKeywordsDraft}
           onSaveKeywords={handleSaveKeywords}
           onAddDiscoveredKeyword={handleAddDiscoveredKeyword}
-          onApprove={handleApprove}
-          onStartOver={handleStartOver}
-        />
-      );
-    }
-
-    return (
-      <StepOneOutline
-        selectedCategory={selectedCategory}
-        onSelectCategory={handleSelectCategory}
-        prompt={prompt}
-        onPromptChange={setPrompt}
-        referenceKeywords={referenceKeywords}
-        onReferenceKeywordsChange={setReferenceKeywords}
-        isLoading={isLoading}
-        error={generateError}
-        onGenerate={handleGenerate}
-      />
-    );
-  }
-
-  function renderMain() {
-    if (currentStep === 1) {
-      return renderStepOne();
-    }
-
-    if (currentStep === 2 && generation) {
-      return (
-        <StepTwoReview
-          outline={generation.outline}
-          keywords={generation.keywords}
-          onAddKeyword={handleAddKeywordStep2}
-          onRemoveKeyword={handleRemoveKeywordStep2}
-          onApproveAndGenerate={handleApproveAndGenerate}
-          onEditKeywords={handleEditKeywordsFromStep2}
-          onRestart={handleRestart}
+          onBack={() => setCurrentStep(1)}
+          onNext={handleProceedToStep3}
         />
       );
     }
 
     if (currentStep === 3) {
       return (
-        <StepThreeArticle
+        <StepThreeOutline
+          outlineText={outlineText}
+          onOutlineTextChange={setOutlineText}
+          isLoading={isOutlineLoading}
+          error={outlineError}
+          onBack={handleBackToStep2}
+          onApprove={handleApproveOutline}
+        />
+      );
+    }
+
+    if (currentStep === 4) {
+      return (
+        <StepFourArticle
           data={articleData}
           isLoading={isArticleLoading}
           error={articleError}
           onApproveAndSchedule={handleApproveAndSchedule}
           onRequestEdits={handleRequestEdits}
           onRetry={handleRetryArticle}
-          onBack={handleBackToStepTwo}
+          onBack={handleBackToStep3}
         />
       );
     }
 
-    if (currentStep === 4 && generation && articleData) {
+    if (currentStep === 5 && articleData) {
       return (
-        <StepFourSchedule
+        <StepFiveSchedule
           article={{
             title: articleData.title,
             metaDescription: articleData.metaDescription,
@@ -446,7 +505,7 @@ export default function Home() {
           submitError={scheduleError}
           scheduleResult={scheduleResult}
           onSchedule={handleSchedule}
-          onBackToArticle={handleBackToArticle}
+          onBackToArticle={handleBackToStep4}
           onNextBlog={handleRestart}
           isPublishing={isPublishing}
           publishError={publishError}

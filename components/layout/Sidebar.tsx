@@ -13,7 +13,7 @@ export default function Sidebar({ currentStep, finalStepComplete = false }: Side
       </p>
       <ol className="mt-4 space-y-1">
         {STEPS.map((step) => {
-          const isJustCompleted = step.number === 4 && finalStepComplete;
+          const isJustCompleted = step.number === 5 && finalStepComplete;
           const isActive = step.number === currentStep && !isJustCompleted;
           const isComplete = step.number < currentStep || isJustCompleted;
 

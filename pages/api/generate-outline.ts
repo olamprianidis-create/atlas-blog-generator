@@ -1,22 +1,32 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { runResearch, ResearchQuery } from "../../utils/webSearch";
 import { generateOutline, BlogOutline } from "../../utils/outline";
-import { researchKeywords, KeywordResearchResult } from "../../utils/keywordResearch";
-import { extractTopicPhrase } from "../../utils/topicExtraction";
+import { ResearchQuery } from "../../utils/webSearch";
 import { Category, CATEGORIES } from "../../utils/types";
 
 interface GenerateOutlineResponse {
-  research: ResearchQuery[];
   outline: BlogOutline;
-  keywordResearch: KeywordResearchResult;
-  originalPrompt: string;
-  extractedTopic: string;
 }
 
 function isCategory(value: unknown): value is Category {
   return typeof value === "string" && CATEGORIES.some((c) => c.value === value);
 }
 
+function isResearchList(value: unknown): value is ResearchQuery[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        typeof (item as ResearchQuery).query === "string" &&
+        Array.isArray((item as ResearchQuery).findings)
+    )
+  );
+}
+
+// Step 3 of the editor: generates the outline using the topic, the
+// keywords finalized at Step 2, and the research already gathered there —
+// no new web searches happen here.
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<GenerateOutlineResponse | { error: string }>
@@ -26,17 +36,22 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt, userReferenceKeywords } = req.body as {
+  const { category, prompt, extractedTopic, keywords, research } = req.body as {
     category?: unknown;
     prompt?: unknown;
-    userReferenceKeywords?: unknown;
+    extractedTopic?: unknown;
+    keywords?: unknown;
+    research?: unknown;
   };
 
   if (category !== null && category !== undefined && !isCategory(category)) {
     return res.status(400).json({ error: "Invalid category" });
   }
-  if (userReferenceKeywords !== undefined && typeof userReferenceKeywords !== "string") {
-    return res.status(400).json({ error: "Invalid userReferenceKeywords" });
+  if (!Array.isArray(keywords) || !keywords.every((k) => typeof k === "string")) {
+    return res.status(400).json({ error: "Missing or invalid keywords" });
+  }
+  if (research !== undefined && !isResearchList(research)) {
+    return res.status(400).json({ error: "Invalid research" });
   }
 
   const selectedCategory = isCategory(category) ? category : null;
@@ -50,35 +65,19 @@ export default async function handler(
     const categoryLabel = selectedCategory
       ? CATEGORIES.find((c) => c.value === selectedCategory)!.label
       : "General";
-    const topic = promptText || categoryLabel;
-
-    // Short 2-4 word phrase used for search queries, kept separate from
-    // the full prompt/topic used for outline generation.
-    const extractedTopic = promptText ? await extractTopicPhrase(promptText) : categoryLabel;
-    const searchTopic = extractedTopic || topic;
-
-    const [research, keywordResearch] = await Promise.all([
-      runResearch(categoryLabel, extractedTopic),
-      researchKeywords(searchTopic, typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined),
-    ]);
+    const topic = promptText || (typeof extractedTopic === "string" ? extractedTopic : "") || categoryLabel;
 
     const { outline } = await generateOutline({
       categoryLabel,
       topic,
-      keywords: keywordResearch.recommendations,
-      research,
+      keywords,
+      research: isResearchList(research) ? research : [],
     });
 
-    return res.status(200).json({
-      research,
-      outline,
-      keywordResearch,
-      originalPrompt: promptText,
-      extractedTopic,
-    });
+    return res.status(200).json({ outline });
   } catch (error) {
     console.error("generate-outline failed:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(502).json({ error: `Generation failed: ${message}` });
+    return res.status(502).json({ error: `Outline generation failed: ${message}` });
   }
 }

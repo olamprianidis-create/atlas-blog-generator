@@ -15,6 +15,7 @@ interface ScheduleArticleRequestBody {
   originalPrompt?: unknown;
   outline?: unknown;
   keywordResearch?: unknown;
+  imageUrl?: unknown;
 }
 
 interface ScheduleArticleResponse {
@@ -46,6 +47,7 @@ export default async function handler(
     originalPrompt,
     outline,
     keywordResearch,
+    imageUrl,
   } = req.body as ScheduleArticleRequestBody;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -74,22 +76,40 @@ export default async function handler(
 
     const supabase = getServiceClient();
 
-    const { data: articleRow, error: articleError } = await supabase
+    const articleRowBase = {
+      title,
+      content_markdown: markdown,
+      content_html: typeof html === "string" ? html : null,
+      keywords,
+      meta_description: metaDescription,
+      category,
+      internal_links: internalLinks,
+      external_links: externalLinks,
+      publish_date: publishDateIso,
+      status: "scheduled",
+    };
+    const imageUrlValue = typeof imageUrl === "string" && imageUrl ? imageUrl : null;
+
+    // image_url is an optional column (see
+    // supabase/migrations/0004_header_image.sql) — degrade gracefully to
+    // scheduling without it if that migration hasn't been run yet.
+    let { data: articleRow, error: articleError } = await supabase
       .from("scheduled_articles")
-      .insert({
-        title,
-        content_markdown: markdown,
-        content_html: typeof html === "string" ? html : null,
-        keywords,
-        meta_description: metaDescription,
-        category,
-        internal_links: internalLinks,
-        external_links: externalLinks,
-        publish_date: publishDateIso,
-        status: "scheduled",
-      })
+      .insert({ ...articleRowBase, image_url: imageUrlValue })
       .select("id")
       .single();
+
+    if (articleError) {
+      console.warn(
+        "scheduled_articles insert with image_url failed, retrying without it (run supabase/migrations/0004_header_image.sql):",
+        articleError.message
+      );
+      ({ data: articleRow, error: articleError } = await supabase
+        .from("scheduled_articles")
+        .insert(articleRowBase)
+        .select("id")
+        .single());
+    }
 
     if (articleError || !articleRow) {
       throw articleError ?? new Error("Insert into scheduled_articles returned no row");

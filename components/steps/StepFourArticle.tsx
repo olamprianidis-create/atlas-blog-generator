@@ -12,7 +12,7 @@ export interface ArticleData {
   checklist: QualityCheckResult[];
 }
 
-interface StepThreeArticleProps {
+interface StepFourArticleProps {
   data: ArticleData | null;
   isLoading: boolean;
   error: string | null;
@@ -31,7 +31,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default function StepThreeArticle({
+export default function StepFourArticle({
   data,
   isLoading,
   error,
@@ -39,7 +39,7 @@ export default function StepThreeArticle({
   onRequestEdits,
   onRetry,
   onBack,
-}: StepThreeArticleProps) {
+}: StepFourArticleProps) {
   const [isRequestingEdits, setIsRequestingEdits] = useState(false);
   const [editInstructions, setEditInstructions] = useState("");
 
@@ -54,7 +54,7 @@ export default function StepThreeArticle({
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h2 className="text-xl font-semibold text-slate-900">Step 3: Generate Full Article</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Step 4: Full Article</h2>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white py-20">
           <Spinner />
           <p className="text-sm text-slate-500">Generating the full article...</p>
@@ -66,7 +66,7 @@ export default function StepThreeArticle({
   if (error) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h2 className="text-xl font-semibold text-slate-900">Step 3: Generate Full Article</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Step 4: Full Article</h2>
         <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
@@ -100,7 +100,7 @@ export default function StepThreeArticle({
     <div className="mx-auto max-w-3xl pb-16">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-900">Step 3: Generate Full Article</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Step 4: Full Article</h2>
           <p className="mt-1 text-sm text-slate-500">
             {data.wordCount.toLocaleString()} words · {data.readingTimeMinutes} min read
           </p>

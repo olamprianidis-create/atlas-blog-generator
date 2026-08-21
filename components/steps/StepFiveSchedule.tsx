@@ -16,7 +16,7 @@ export interface ScheduleResult {
   publishPreview: string;
 }
 
-interface StepFourScheduleProps {
+interface StepFiveScheduleProps {
   article: ArticleSummary;
   category: Category | null;
   onCategoryChange: (category: Category) => void;
@@ -47,7 +47,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default function StepFourSchedule({
+export default function StepFiveSchedule({
   article,
   category,
   onCategoryChange,
@@ -67,7 +67,7 @@ export default function StepFourSchedule({
   publishError,
   isPublished,
   onPublishNow,
-}: StepFourScheduleProps) {
+}: StepFiveScheduleProps) {
   const passedCount = article.checklist.filter((c) => c.passed).length;
   const totalChecks = article.checklist.length;
   const preview = formatPublishPreview(publishDate, publishTime, timezone);
@@ -76,7 +76,7 @@ export default function StepFourSchedule({
   if (scheduleResult) {
     return (
       <div className="mx-auto max-w-3xl">
-        <h2 className="text-xl font-semibold text-slate-900">Step 4: Schedule & Store</h2>
+        <h2 className="text-xl font-semibold text-slate-900">Step 5: Schedule & Store</h2>
 
         <div className="mt-6 rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center">
           <p className="text-lg font-semibold text-green-800">
@@ -133,7 +133,7 @@ export default function StepFourSchedule({
 
   return (
     <div className="mx-auto max-w-3xl pb-16">
-      <h2 className="text-xl font-semibold text-slate-900">Step 4: Schedule & Store</h2>
+      <h2 className="text-xl font-semibold text-slate-900">Step 5: Schedule & Store</h2>
       <p className="mt-1 text-sm text-slate-500">Review the summary, choose a publish time, and store it.</p>
 
       <Section title="Article Summary">
