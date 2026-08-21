@@ -12,7 +12,9 @@ export default function Header() {
 
   return (
     <header className="h-16 shrink-0 border-b border-slate-200 bg-white px-6 flex items-center justify-between">
-      <h1 className="text-lg font-semibold text-slate-900">ATLAS Blog Generator</h1>
+      <Link href="/" className="text-lg font-semibold text-slate-900 transition-colors hover:text-slate-700">
+        ATLAS Blog Generator
+      </Link>
       <nav className="flex items-center gap-6">
         {NAV_LINKS.map((link) => {
           const isActive = router.pathname === link.href;

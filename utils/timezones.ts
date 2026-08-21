@@ -24,6 +24,27 @@ export function buildPublishDate(date: string, time: string, timezoneValue: stri
   return new Date(`${date}T${time}:00${getOffset(timezoneValue)}`);
 }
 
+// Inverse of buildPublishDate — given an ISO instant and a fixed-offset
+// timezone, recovers the date/time strings a user would have typed to
+// produce that instant. Used to pre-fill the schedule form when editing
+// an already-scheduled article.
+export function parsePublishDate(iso: string, timezoneValue: string): { date: string; time: string } {
+  const offset = getOffset(timezoneValue);
+  const sign = offset.startsWith("-") ? -1 : 1;
+  const [offsetHours, offsetMinutes] = offset.slice(1).split(":").map(Number);
+  const offsetTotalMinutes = sign * (offsetHours * 60 + offsetMinutes);
+
+  const shifted = new Date(new Date(iso).getTime() + offsetTotalMinutes * 60000);
+
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  const hh = String(shifted.getUTCHours()).padStart(2, "0");
+  const mm = String(shifted.getUTCMinutes()).padStart(2, "0");
+
+  return { date: `${y}-${m}-${d}`, time: `${hh}:${mm}` };
+}
+
 export function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   if (!y || !m || !d) return dateStr;

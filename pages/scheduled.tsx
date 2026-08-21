@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Header from "../components/layout/Header";
 import { CATEGORIES } from "../utils/types";
 
@@ -48,7 +49,7 @@ export default function ScheduledPage() {
         <div className="mx-auto max-w-3xl">
           <h1 className="text-2xl font-semibold text-slate-900">Scheduled</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Articles waiting to auto-publish. Not live yet.
+            Articles waiting to auto-publish. Not live yet. Click one to change its publish date.
           </p>
 
           {error && (
@@ -64,19 +65,21 @@ export default function ScheduledPage() {
           ) : (
             <ul className="mt-8 flex flex-col gap-3">
               {articles.map((article) => (
-                <li
-                  key={article.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">{article.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {categoryLabel(article.category)} · Publishes {formatPublishDate(article.publish_date)}
-                    </p>
-                  </div>
-                  <span className="ml-4 shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                    Scheduled
-                  </span>
+                <li key={article.id}>
+                  <Link
+                    href={`/?scheduledId=${article.id}`}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{article.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {categoryLabel(article.category)} · Publishes {formatPublishDate(article.publish_date)}
+                      </p>
+                    </div>
+                    <span className="ml-4 shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                      Scheduled
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

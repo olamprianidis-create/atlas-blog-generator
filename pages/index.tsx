@@ -13,9 +13,10 @@ import { Category, StepNumber } from "../utils/types";
 import type { ResearchQuery } from "../utils/webSearch";
 import type { BlogOutline } from "../utils/outline";
 import type { KeywordResearchResult } from "../utils/keywordResearch";
-import type { QualityCheckResult } from "../utils/qualityChecklist";
+import { runQualityChecklist, type QualityCheckResult } from "../utils/qualityChecklist";
+import { countWords, calculateReadingTime } from "../utils/markdown";
 import { serializeOutline, parseOutlineText } from "../utils/outlineSerialize";
-import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview } from "../utils/timezones";
+import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview, parsePublishDate } from "../utils/timezones";
 
 interface ResearchKeywordsApiResponse {
   research: ResearchQuery[];
@@ -69,6 +70,7 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
 
   // Step 1: topic & prompt
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -295,6 +297,7 @@ export default function Home() {
     setIsPublished(false);
     setCurrentStep(1);
     setDraftId(null);
+    setEditingArticleId(null);
   }
 
   function handleReset() {
@@ -364,24 +367,74 @@ export default function Home() {
 
   useEffect(() => {
     if (!router.isReady) return;
-    const draftParam = router.query.draft;
-    if (typeof draftParam !== "string" || !draftParam) return;
 
-    setIsLoadingDraft(true);
-    fetch(`/api/drafts/${draftParam}`)
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error ?? "Failed to load draft");
-        applyDraftState(data.state as DraftState);
-        setCurrentStep((data.current_step as StepNumber) ?? 1);
-        setDraftId(data.id as string);
-      })
-      .catch((error) => {
-        console.error("Failed to load draft:", error);
-      })
-      .finally(() => setIsLoadingDraft(false));
-    // Only run once router params are ready — draft loading shouldn't re-fire
-    // as the user edits wizard state afterward.
+    const draftParam = router.query.draft;
+    if (typeof draftParam === "string" && draftParam) {
+      setIsLoadingDraft(true);
+      fetch(`/api/drafts/${draftParam}`)
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error ?? "Failed to load draft");
+          applyDraftState(data.state as DraftState);
+          setCurrentStep((data.current_step as StepNumber) ?? 1);
+          setDraftId(data.id as string);
+        })
+        .catch((error) => {
+          console.error("Failed to load draft:", error);
+        })
+        .finally(() => setIsLoadingDraft(false));
+      return;
+    }
+
+    const scheduledIdParam = router.query.scheduledId;
+    if (typeof scheduledIdParam === "string" && scheduledIdParam) {
+      setIsLoadingDraft(true);
+      fetch(`/api/scheduled-articles/${scheduledIdParam}`)
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error ?? "Failed to load scheduled article");
+
+          const articleKeywords: string[] = Array.isArray(data.keywords) ? data.keywords : [];
+          const wordCount = countWords(data.content_markdown ?? "");
+          const checklist = runQualityChecklist({
+            markdown: data.content_markdown ?? "",
+            metaDescription: data.meta_description ?? "",
+            mainKeyword: articleKeywords[0] ?? "",
+            longTailKeywords: articleKeywords.slice(1),
+          });
+
+          setSelectedCategory(data.category as Category);
+          setKeywords(articleKeywords.map((text): KeywordItem => ({ text, isSuggested: false })));
+          setHeaderImageUrl(data.image_url ?? null);
+          setArticleData({
+            title: data.title,
+            markdown: data.content_markdown,
+            html: data.content_html ?? "",
+            metaDescription: data.meta_description,
+            wordCount,
+            readingTimeMinutes: calculateReadingTime(wordCount),
+            checklist,
+          });
+
+          if (typeof data.publish_date === "string" && data.publish_date) {
+            const { date, time } = parsePublishDate(data.publish_date, DEFAULT_TIMEZONE);
+            setPublishDate(date);
+            setPublishTime(time);
+            setTimezone(DEFAULT_TIMEZONE);
+          }
+
+          setScheduleResult(null);
+          setScheduleError(null);
+          setEditingArticleId(data.id as string);
+          setCurrentStep(5);
+        })
+        .catch((error) => {
+          console.error("Failed to load scheduled article:", error);
+        })
+        .finally(() => setIsLoadingDraft(false));
+    }
+    // Only run once router params are ready — this shouldn't re-fire as
+    // the user edits wizard state afterward.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
@@ -473,6 +526,7 @@ export default function Home() {
           outline,
           keywordResearch: keywordResearchResult,
           imageUrl: headerImageUrl,
+          articleId: editingArticleId,
         }),
       });
 
@@ -482,6 +536,7 @@ export default function Home() {
         throw new Error(data.error ?? `Request failed with status ${response.status}`);
       }
 
+      setEditingArticleId(data.articleId);
       setScheduleResult({
         articleId: data.articleId,
         publishPreview: formatPublishPreview(publishDate, publishTime, timezone),
@@ -498,7 +553,8 @@ export default function Home() {
   }
 
   async function handlePublishNow() {
-    if (!scheduleResult) return;
+    const articleIdToPublish = scheduleResult?.articleId ?? editingArticleId;
+    if (!articleIdToPublish) return;
 
     setIsPublishing(true);
     setPublishError(null);
@@ -507,7 +563,7 @@ export default function Home() {
       const response = await fetch("/api/publish-article", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ article_id: scheduleResult.articleId }),
+        body: JSON.stringify({ article_id: articleIdToPublish }),
       });
 
       const data = await response.json();
@@ -618,6 +674,7 @@ export default function Home() {
           publishError={publishError}
           isPublished={isPublished}
           onPublishNow={handlePublishNow}
+          isEditingExisting={editingArticleId !== null}
         />
       );
     }

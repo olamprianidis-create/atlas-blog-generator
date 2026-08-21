@@ -36,6 +36,7 @@ interface StepFiveScheduleProps {
   publishError: string | null;
   isPublished: boolean;
   onPublishNow: () => void;
+  isEditingExisting?: boolean;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -67,11 +68,44 @@ export default function StepFiveSchedule({
   publishError,
   isPublished,
   onPublishNow,
+  isEditingExisting = false,
 }: StepFiveScheduleProps) {
   const passedCount = article.checklist.filter((c) => c.passed).length;
   const totalChecks = article.checklist.length;
   const preview = formatPublishPreview(publishDate, publishTime, timezone);
   const canSchedule = !isSubmitting && !!category && !!publishDate && !!publishTime;
+
+  const publishNowBlock = (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      {isPublished ? (
+        <p className="text-sm font-medium text-green-700">
+          ✓ Published — status updated to &quot;published&quot; and the webhook was sent.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">
+            {isEditingExisting
+              ? "Post this article right now instead of waiting for its scheduled time."
+              : "The real publish happens automatically when the scheduled time arrives (via the cron job). To test the publish + webhook flow right now without waiting, use the button below."}
+          </p>
+          <button
+            type="button"
+            onClick={onPublishNow}
+            disabled={isPublishing}
+            className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPublishing && <Spinner />}
+            {isPublishing ? "Publishing..." : "Publish Now"}
+          </button>
+          {publishError && (
+            <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {publishError}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
 
   if (scheduleResult) {
     return (
@@ -87,36 +121,7 @@ export default function StepFiveSchedule({
           </p>
         </div>
 
-        <Section title="Testing">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            {isPublished ? (
-              <p className="text-sm font-medium text-green-700">
-                ✓ Published — status updated to &quot;published&quot; and the webhook was sent.
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-slate-600">
-                  The real publish happens automatically when the scheduled time arrives (via the cron
-                  job). To test the publish + webhook flow right now without waiting, use the button below.
-                </p>
-                <button
-                  type="button"
-                  onClick={onPublishNow}
-                  disabled={isPublishing}
-                  className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isPublishing && <Spinner />}
-                  {isPublishing ? "Publishing..." : "Publish Now"}
-                </button>
-                {publishError && (
-                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {publishError}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </Section>
+        <Section title="Publish">{publishNowBlock}</Section>
 
         <div className="mt-8 flex justify-center">
           <button
@@ -229,6 +234,8 @@ export default function StepFiveSchedule({
         </div>
       </Section>
 
+      {isEditingExisting && <Section title="Publish">{publishNowBlock}</Section>}
+
       <Section title={`Quality Checklist Summary (${passedCount}/${totalChecks} passed)`}>
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
@@ -264,7 +271,7 @@ export default function StepFiveSchedule({
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           {isSubmitting && <Spinner />}
-          {isSubmitting ? "Scheduling..." : "Schedule & Store"}
+          {isSubmitting ? "Saving..." : isEditingExisting ? "Update Schedule" : "Schedule & Store"}
         </button>
       </div>
     </div>

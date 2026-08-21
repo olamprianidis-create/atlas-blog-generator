@@ -16,6 +16,7 @@ interface ScheduleArticleRequestBody {
   outline?: unknown;
   keywordResearch?: unknown;
   imageUrl?: unknown;
+  articleId?: unknown;
 }
 
 interface ScheduleArticleResponse {
@@ -48,6 +49,7 @@ export default async function handler(
     outline,
     keywordResearch,
     imageUrl,
+    articleId,
   } = req.body as ScheduleArticleRequestBody;
 
   if (typeof title !== "string" || !title.trim()) {
@@ -89,6 +91,38 @@ export default async function handler(
       status: "scheduled",
     };
     const imageUrlValue = typeof imageUrl === "string" && imageUrl ? imageUrl : null;
+    const editingArticleId = typeof articleId === "string" && articleId ? articleId : null;
+
+    if (editingArticleId) {
+      // Re-scheduling an already-scheduled article (e.g. changing its
+      // publish date from the Scheduled page) updates the existing row
+      // in place rather than creating a duplicate.
+      let { data: updatedRow, error: updateError } = await supabase
+        .from("scheduled_articles")
+        .update({ ...articleRowBase, image_url: imageUrlValue })
+        .eq("id", editingArticleId)
+        .select("id")
+        .single();
+
+      if (updateError) {
+        console.warn(
+          "scheduled_articles update with image_url failed, retrying without it (run supabase/migrations/0004_header_image.sql):",
+          updateError.message
+        );
+        ({ data: updatedRow, error: updateError } = await supabase
+          .from("scheduled_articles")
+          .update(articleRowBase)
+          .eq("id", editingArticleId)
+          .select("id")
+          .single());
+      }
+
+      if (updateError || !updatedRow) {
+        throw updateError ?? new Error("Update to scheduled_articles returned no row");
+      }
+
+      return res.status(200).json({ articleId: updatedRow.id as string, publishDate: publishDateIso });
+    }
 
     // image_url is an optional column (see
     // supabase/migrations/0004_header_image.sql) — degrade gracefully to
