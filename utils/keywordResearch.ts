@@ -80,9 +80,11 @@ function buildMockResult(topic: string, referenceKeywords: string[]): KeywordRes
 // keywords the user already had in mind.
 export async function researchKeywords(
   topic: string,
-  userReferenceKeywords?: string
+  userReferenceKeywords?: string,
+  preliminaryKeywords?: string
 ): Promise<KeywordResearchResult> {
   const referenceKeywords = parseReferenceKeywords(userReferenceKeywords);
+  const primaryKeywords = parseReferenceKeywords(preliminaryKeywords);
   const mockValue = buildMockResult(topic, referenceKeywords);
 
   const queries = buildQueries(topic);
@@ -102,6 +104,14 @@ export async function researchKeywords(
     ? referenceKeywords.join(", ")
     : "(none provided — analyze research findings only)";
 
+  const primarySummary = primaryKeywords.length
+    ? primaryKeywords.join(", ")
+    : "(none provided)";
+
+  const primaryInstruction = primaryKeywords.length
+    ? `\n\nThe user has provided PRIMARY keywords they want this article to rank for above all else: ${primarySummary}. For each primary keyword, generate at least 2-3 medium-tail (3-4 word) and long-tail (5+ word) variations that naturally implement/incorporate that primary keyword (e.g. primary "protein intake" → medium-tail "daily protein intake guide", long-tail "how much protein intake for muscle building"). Include these variations in discoveredKeywords (source "long_tail") and weight the primary keywords and their variations heavily in your top recommendations.`
+    : "";
+
   const prompt = `You are an SEO keyword researcher analyzing web search findings for a blog article on atlasnetwork.club.
 
 Topic: ${topic}
@@ -110,6 +120,7 @@ Raw findings from 4 web searches (People Also Ask questions, Google related sear
 ${findingsSummary}
 
 User's reference keywords (keywords the user already had in mind, may be empty): ${referenceSummary}
+User's primary/preliminary keywords (the main terms they want to primarily rank for, may be empty): ${primarySummary}${primaryInstruction}
 
 Do the following:
 1. Extract concrete long-tail keyword phrases (ideally 3-5 words) from the findings above. For each, classify:
@@ -119,7 +130,7 @@ Do the following:
 2. For each user reference keyword, determine:
    - found: whether it appeared in or closely matches the research findings
    - potential: 1-10 score for its optimization potential for this article
-3. Recommend the top 8 keywords overall (a mix of the best discovered keywords and any strong user reference keywords), as a flat array of strings.
+3. Recommend the top 8 keywords overall (a mix of the best discovered keywords, the primary-keyword variations described above, and any strong user reference keywords), as a flat array of strings.
 4. Write a brief (2-3 sentence) explanation of the semantic clustering/strategy behind your recommendations.
 
 Respond with ONLY valid JSON in this exact shape, no markdown fences, no commentary:
@@ -127,7 +138,7 @@ Respond with ONLY valid JSON in this exact shape, no markdown fences, no comment
 
   const analyzed = await generateJSON<
     Omit<KeywordResearchResult, "queriesRun">
-  >(prompt, mockValue, { maxTokens: 2048 });
+  >(prompt, mockValue, { maxTokens: 4096 });
 
   return {
     queriesRun: queries.map((q) => q.query),

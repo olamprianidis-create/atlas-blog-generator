@@ -6,6 +6,8 @@ interface StepOneTopicProps {
   onSelectCategory: (category: Category) => void;
   prompt: string;
   onPromptChange: (value: string) => void;
+  preliminaryKeywords: string;
+  onPreliminaryKeywordsChange: (value: string) => void;
   onNext: () => void;
 }
 
@@ -14,6 +16,8 @@ export default function StepOneTopic({
   onSelectCategory,
   prompt,
   onPromptChange,
+  preliminaryKeywords,
+  onPreliminaryKeywordsChange,
   onNext,
 }: StepOneTopicProps) {
   const canContinue = prompt.trim().length > 0 || selectedCategory !== null;
@@ -40,6 +44,24 @@ export default function StepOneTopic({
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder="Ask a question, share a statistic, or pick a topic..."
           rows={6}
+          className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="mt-6">
+        <label htmlFor="preliminary-keywords" className="mb-2 block text-sm font-medium text-slate-700">
+          Preliminary Keywords <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <p className="mb-2 text-xs text-slate-500">
+          The main keywords you want this article to primarily rank for. On the next step,
+          keyword research will build medium- and long-tail variations around these.
+        </p>
+        <textarea
+          id="preliminary-keywords"
+          value={preliminaryKeywords}
+          onChange={(event) => onPreliminaryKeywordsChange(event.target.value)}
+          placeholder="e.g. startup term sheet negotiation, first funding round"
+          rows={2}
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>

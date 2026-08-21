@@ -26,10 +26,11 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt, userReferenceKeywords } = req.body as {
+  const { category, prompt, userReferenceKeywords, preliminaryKeywords } = req.body as {
     category?: unknown;
     prompt?: unknown;
     userReferenceKeywords?: unknown;
+    preliminaryKeywords?: unknown;
   };
 
   if (category !== null && category !== undefined && !isCategory(category)) {
@@ -37,6 +38,9 @@ export default async function handler(
   }
   if (userReferenceKeywords !== undefined && typeof userReferenceKeywords !== "string") {
     return res.status(400).json({ error: "Invalid userReferenceKeywords" });
+  }
+  if (preliminaryKeywords !== undefined && typeof preliminaryKeywords !== "string") {
+    return res.status(400).json({ error: "Invalid preliminaryKeywords" });
   }
 
   const selectedCategory = isCategory(category) ? category : null;
@@ -56,7 +60,11 @@ export default async function handler(
 
     const [research, keywordResearch] = await Promise.all([
       runResearch(categoryLabel, extractedTopic),
-      researchKeywords(searchTopic, typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined),
+      researchKeywords(
+        searchTopic,
+        typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined,
+        typeof preliminaryKeywords === "string" ? preliminaryKeywords : undefined
+      ),
     ]);
 
     return res.status(200).json({ research, keywordResearch, extractedTopic });

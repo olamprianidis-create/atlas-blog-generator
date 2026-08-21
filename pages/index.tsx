@@ -51,6 +51,7 @@ interface ArticleRecord {
 interface DraftState {
   selectedCategory: Category | null;
   prompt: string;
+  preliminaryKeywords: string;
   headerImageUrl: string | null;
   referenceKeywords: string;
   keywordResearchResult: KeywordResearchResult | null;
@@ -65,9 +66,42 @@ interface DraftState {
   timezone: string;
 }
 
+interface ResearchSignatureInput {
+  selectedCategory: Category | null;
+  prompt: string;
+  referenceKeywords: string;
+  preliminaryKeywords: string;
+}
+
+interface OutlineSignatureInput {
+  selectedCategory: Category | null;
+  extractedTopic: string;
+  keywordTexts: string[];
+}
+
+interface ArticleSignatureInput {
+  selectedCategory: Category | null;
+  topic: string;
+  outline: BlogOutline;
+  keywordTexts: string[];
+}
+
+function computeResearchSignature(input: ResearchSignatureInput): string {
+  return JSON.stringify(input);
+}
+
+function computeOutlineSignature(input: OutlineSignatureInput): string {
+  return JSON.stringify(input);
+}
+
+function computeArticleSignature(input: ArticleSignatureInput): string {
+  return JSON.stringify(input);
+}
+
 export default function Home() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
+  const [maxStepReached, setMaxStepReached] = useState<StepNumber>(1);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
@@ -75,6 +109,7 @@ export default function Home() {
   // Step 1: topic & prompt
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [prompt, setPrompt] = useState("");
+  const [preliminaryKeywords, setPreliminaryKeywords] = useState("");
 
   // Step 2: image & keywords
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
@@ -89,12 +124,15 @@ export default function Home() {
   const [keywords, setKeywords] = useState<KeywordItem[]>([]);
   const [isEditingKeywords, setIsEditingKeywords] = useState(false);
   const [keywordsDraft, setKeywordsDraft] = useState("");
+  const [lastResearchSignature, setLastResearchSignature] = useState<string | null>(null);
 
   // Step 3: outline approval
   const [outline, setOutline] = useState<BlogOutline | null>(null);
   const [outlineText, setOutlineText] = useState("");
   const [isOutlineLoading, setIsOutlineLoading] = useState(false);
   const [outlineError, setOutlineError] = useState<string | null>(null);
+  const [lastOutlineSignature, setLastOutlineSignature] = useState<string | null>(null);
+  const [lastArticleSignature, setLastArticleSignature] = useState<string | null>(null);
 
   // Step 4: full article
   const [articleData, setArticleData] = useState<ArticleRecord | null>(null);
@@ -116,13 +154,23 @@ export default function Home() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
 
+  useEffect(() => {
+    setMaxStepReached((current) => (currentStep > current ? currentStep : current));
+  }, [currentStep]);
+
   function handleSelectCategory(category: Category) {
     setSelectedCategory((current) => (current === category ? null : category));
   }
 
   function handleProceedToStep2() {
     setCurrentStep(2);
-    if (!keywordResearchResult) {
+    const signature = computeResearchSignature({
+      selectedCategory,
+      prompt,
+      referenceKeywords,
+      preliminaryKeywords,
+    });
+    if (!keywordResearchResult || signature !== lastResearchSignature) {
       void handleRunResearch();
     }
   }
@@ -179,6 +227,7 @@ export default function Home() {
           category: selectedCategory,
           prompt,
           userReferenceKeywords: referenceKeywords.trim() || undefined,
+          preliminaryKeywords: preliminaryKeywords.trim() || undefined,
         }),
       });
 
@@ -196,6 +245,9 @@ export default function Home() {
       setExtractedTopic(newExtractedTopic);
       setKeywords(newKeywords);
       setKeywordsDraft(newKeywords.map((k) => k.text).join(", "));
+      setLastResearchSignature(
+        computeResearchSignature({ selectedCategory, prompt, referenceKeywords, preliminaryKeywords })
+      );
     } catch (error) {
       setResearchError(error instanceof Error ? error.message : "Keyword research failed for an unknown reason.");
     } finally {
@@ -231,6 +283,18 @@ export default function Home() {
 
   async function handleProceedToStep3() {
     setCurrentStep(3);
+
+    const signature = computeOutlineSignature({
+      selectedCategory,
+      extractedTopic,
+      keywordTexts: keywords.map((k) => k.text),
+    });
+    if (outline && signature === lastOutlineSignature) {
+      // Nothing changed since the last time this outline was generated —
+      // just navigate there and preserve whatever the user already edited.
+      return;
+    }
+
     setIsOutlineLoading(true);
     setOutlineError(null);
 
@@ -256,6 +320,7 @@ export default function Home() {
       const { outline: newOutline } = data as GenerateOutlineApiResponse;
       setOutline(newOutline);
       setOutlineText(serializeOutline(newOutline));
+      setLastOutlineSignature(signature);
     } catch (error) {
       setOutlineError(error instanceof Error ? error.message : "Outline generation failed for an unknown reason.");
     } finally {
@@ -270,6 +335,7 @@ export default function Home() {
   function handleRestart() {
     setSelectedCategory(null);
     setPrompt("");
+    setPreliminaryKeywords("");
     setHeaderImageUrl(null);
     setIsUploadingImage(false);
     setImageUploadError(null);
@@ -282,10 +348,13 @@ export default function Home() {
     setKeywords([]);
     setIsEditingKeywords(false);
     setKeywordsDraft("");
+    setLastResearchSignature(null);
     setOutline(null);
     setOutlineText("");
     setIsOutlineLoading(false);
     setOutlineError(null);
+    setLastOutlineSignature(null);
+    setLastArticleSignature(null);
     setArticleData(null);
     setArticleError(null);
     setScheduleResult(null);
@@ -296,6 +365,7 @@ export default function Home() {
     setPublishError(null);
     setIsPublished(false);
     setCurrentStep(1);
+    setMaxStepReached(1);
     setDraftId(null);
     setEditingArticleId(null);
   }
@@ -308,6 +378,7 @@ export default function Home() {
     return {
       selectedCategory,
       prompt,
+      preliminaryKeywords,
       headerImageUrl,
       referenceKeywords,
       keywordResearchResult,
@@ -326,6 +397,7 @@ export default function Home() {
   function applyDraftState(state: DraftState) {
     setSelectedCategory(state.selectedCategory);
     setPrompt(state.prompt);
+    setPreliminaryKeywords(state.preliminaryKeywords ?? "");
     setHeaderImageUrl(state.headerImageUrl);
     setReferenceKeywords(state.referenceKeywords);
     setKeywordResearchResult(state.keywordResearchResult);
@@ -338,6 +410,39 @@ export default function Home() {
     setPublishDate(state.publishDate);
     setPublishTime(state.publishTime);
     setTimezone(state.timezone);
+
+    // Re-derive "last generated with these inputs" signatures from the
+    // loaded state so resuming a draft doesn't look "changed" and force
+    // an unnecessary (paid) regeneration the moment the user hits Next.
+    if (state.keywordResearchResult) {
+      setLastResearchSignature(
+        computeResearchSignature({
+          selectedCategory: state.selectedCategory,
+          prompt: state.prompt,
+          referenceKeywords: state.referenceKeywords,
+          preliminaryKeywords: state.preliminaryKeywords ?? "",
+        })
+      );
+    }
+    if (state.outline) {
+      setLastOutlineSignature(
+        computeOutlineSignature({
+          selectedCategory: state.selectedCategory,
+          extractedTopic: state.extractedTopic,
+          keywordTexts: state.keywords.map((k) => k.text),
+        })
+      );
+    }
+    if (state.outline && state.articleData) {
+      setLastArticleSignature(
+        computeArticleSignature({
+          selectedCategory: state.selectedCategory,
+          topic: state.extractedTopic || state.prompt,
+          outline: state.outline,
+          keywordTexts: state.keywords.map((k) => k.text),
+        })
+      );
+    }
   }
 
   async function handleSaveDraft() {
@@ -466,6 +571,14 @@ export default function Home() {
         data as GenerateArticleApiResponse;
 
       setArticleData({ title, markdown, html, metaDescription, wordCount, readingTimeMinutes, checklist });
+      setLastArticleSignature(
+        computeArticleSignature({
+          selectedCategory,
+          topic: extractedTopic || prompt,
+          outline: outlineArg,
+          keywordTexts: keywords.map((k) => k.text),
+        })
+      );
     } catch (error) {
       setArticleError(error instanceof Error ? error.message : "Article generation failed for an unknown reason.");
     } finally {
@@ -477,6 +590,19 @@ export default function Home() {
     const parsed = parseOutlineText(outlineText);
     setOutline(parsed);
     setCurrentStep(4);
+
+    const signature = computeArticleSignature({
+      selectedCategory,
+      topic: extractedTopic || prompt,
+      outline: parsed,
+      keywordTexts: keywords.map((k) => k.text),
+    });
+    if (articleData && signature === lastArticleSignature) {
+      // Outline is unchanged since the last generated article — just
+      // navigate there and keep the existing article (and any edits).
+      return;
+    }
+
     void fetchArticle(parsed);
   }
 
@@ -588,6 +714,8 @@ export default function Home() {
           onSelectCategory={handleSelectCategory}
           prompt={prompt}
           onPromptChange={setPrompt}
+          preliminaryKeywords={preliminaryKeywords}
+          onPreliminaryKeywordsChange={setPreliminaryKeywords}
           onNext={handleProceedToStep2}
         />
       );
@@ -686,7 +814,12 @@ export default function Home() {
     <div className="flex h-screen flex-col bg-slate-50">
       <Header />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentStep={currentStep} finalStepComplete={scheduleResult !== null} />
+        <Sidebar
+          currentStep={currentStep}
+          maxStepReached={maxStepReached}
+          onSelectStep={setCurrentStep}
+          finalStepComplete={scheduleResult !== null}
+        />
         <main className="flex-1 overflow-y-auto px-8 py-10">
           <div className="mb-6 flex justify-end">
             <SaveDraftButton

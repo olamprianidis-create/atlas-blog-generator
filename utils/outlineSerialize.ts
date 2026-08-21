@@ -44,7 +44,7 @@ function extractSection(text: string, header: string): string {
 function parseListLines(section: string): string[] {
   return section
     .split("\n")
-    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .map((line) => line.replace(/^(?:[-*]|\d+\.)\s*/, "").trim())
     .filter(Boolean);
 }
 

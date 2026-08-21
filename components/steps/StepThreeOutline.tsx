@@ -1,4 +1,5 @@
 import Spinner from "../Spinner";
+import RichTextEditor from "../RichTextEditor";
 import { PLACEHOLDER_RELATED_ARTICLES } from "../../utils/relatedArticles";
 
 interface StepThreeOutlineProps {
@@ -69,13 +70,7 @@ export default function StepThreeOutline({
       </div>
 
       <div className="mt-6">
-        <textarea
-          value={outlineText}
-          onChange={(event) => onOutlineTextChange(event.target.value)}
-          rows={28}
-          spellCheck={false}
-          className="w-full resize-y rounded-lg border border-slate-200 bg-white px-4 py-3 font-mono text-sm leading-relaxed text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
+        <RichTextEditor value={outlineText} onChange={onOutlineTextChange} />
       </div>
 
       <div className="mt-6">
