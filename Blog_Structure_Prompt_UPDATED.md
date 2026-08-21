@@ -1,7 +1,7 @@
 # ATLAS Blog Structure & Quality Template
 
 This is the reference template for full article generation (Step 3). It
-defines the required structure, sourcing rules, and the 30-point quality
+defines the required structure, sourcing rules, and the 35-point quality
 checklist that every generated article is scored against.
 
 > Authored as part of Phase 5 scaffolding since CLAUDE.md references this
@@ -25,6 +25,43 @@ checklist that every generated article is scored against.
 
 - 1,500–2,500 words total
 - No paragraph should run longer than ~150 words (readability)
+
+## Article Formatting & Style (ATLAS brand voice)
+
+### Hook Section (Opening)
+- Start with 3-5 **single-line statements** (not paragraphs)
+- Each line should stand alone
+- Use line breaks between statements to ease the reader into the article
+- Make the opening feel accessible, not dense
+- Example:
+  > Most men struggle with this.
+  >
+  > Nobody talks about why.
+  >
+  > The science is clear—here's what to do.
+
+### Paragraph Length & Pacing
+- **Maximum 3 sentences per paragraph** (hard cap)
+- **Target: 2 sentences per paragraph** (ideal)
+- Break up long thoughts across multiple short paragraphs
+- Use whitespace generously — visual breathing room improves readability
+- Never write dense blocks of text (looks intimidating)
+
+### Lists & Formatting
+- Use **bullet points** frequently (minimum 2-3 per article)
+- Use **numbered lists** for step-by-step content (minimum 1-2 per article)
+- Lists should break up sections naturally
+- Each bullet/number should be 1-2 sentences max
+
+### Pull Quotes (Centerpiece)
+- Add 1-2 **centerpiece quotes** per article (1,500+ word articles)
+- Format as **center-aligned, larger text** in a styled box
+- Use this exact markdown blockquote shape so it renders styled:
+  ```markdown
+  > **"Your powerful statement here."**
+  >
+  > *Make this line impactful*
+  ```
 
 ## E-E-A-T signals (Experience, Expertise, Authority, Trustworthiness)
 
@@ -62,7 +99,7 @@ checklist that every generated article is scored against.
 
 ---
 
-## 30-point quality checklist
+## 35-point quality checklist
 
 Structure (7):
 1. Has an H1 title
@@ -109,3 +146,10 @@ Formatting integrity (3):
 28. No broken/unclosed markdown link syntax
 29. No leftover placeholder tokens in the final output
 30. Headings follow a sane hierarchy (starts with H1, no orphaned jumps)
+
+Brand voice & pacing (5):
+31. Hook opens with 3-5 short standalone lines
+32. Paragraphs are max 3 sentences each
+33. Has at least 2 bullet-list sections
+34. Has at least 1 numbered-list section
+35. Has at least 1 styled pull quote

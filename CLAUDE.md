@@ -11,6 +11,53 @@ ATLAS Blog Generator is an automated content creation tool that generates SEO-op
 
 ---
 
+## Article Formatting & Style
+
+All generated blog articles must follow these visual and textual guidelines:
+
+### Hook Section (Opening)
+- Start with 3-5 **single-line statements** (not paragraphs)
+- Each line should stand alone
+- Use line breaks between statements to ease reader into article
+- Make opening feel accessible, not dense
+- Example:
+  > Most men struggle with this.
+  >
+  > Nobody talks about why.
+  >
+  > The science is clear—here's what to do.
+
+### Paragraph Length & Pacing
+- **Maximum 3 sentences per paragraph** (hard cap)
+- **Target: 2 sentences per paragraph** (ideal)
+- Break up long thoughts across multiple short paragraphs
+- Use whitespace generously—visual breathing room improves readability
+- Never write dense blocks of text (looks intimidating)
+
+### Lists & Formatting
+- Use **bullet points** frequently (minimum 2-3 per article)
+- Use **numbered lists** for step-by-step content (minimum 1-2 per article)
+- Lists should break up sections naturally
+- Each bullet/number should be 1-2 sentences max
+
+### Pull Quotes (Centerpiece)
+- Add 1-2 **centerpiece quotes** per article (1,500+ word articles)
+- Format as **center-aligned, larger text** in a styled box
+- Use a markdown blockquote with this exact shape so it renders styled:
+  ```markdown
+  > **"Your powerful statement here."**
+  >
+  > *Make this line impactful*
+  ```
+
+This is enforced two ways: the generation prompt (`utils/article.ts`) instructs
+the model to follow it, and the 35-point quality checklist
+(`utils/qualityChecklist.ts`, mirrored in `Blog_Structure_Prompt_UPDATED.md`)
+scores every generated article against it — checks 31-35 are the brand-voice
+checks specifically.
+
+---
+
 ## Environment Setup
 
 ### Required .env.local variables:
@@ -54,7 +101,7 @@ npm run dev
 - **Store markdown in Supabase** (not HTML) - Next.js renders dynamically
 - **Frontmatter format** for article metadata (title, keywords, publish_date, etc.)
 - **Scheduled articles table** triggers webhook at publish time
-- **30-point quality checklist** runs before user review (automate quality gates)
+- **35-point quality checklist** runs before user review (automate quality gates)
 
 ---
 
@@ -142,7 +189,7 @@ Always reference this template when generating outlines and articles.
 - **Review step:** User approves outline, keywords, and research findings
 - **Generate step:** Writes full article with all AI optimization signals
 - **Schedule step:** Stores in Supabase with publish_date, triggers on schedule
-- **Quality gates:** 30-point checklist runs automatically (don't skip it)
+- **Quality gates:** 35-point checklist runs automatically (don't skip it)
 
 ---
 

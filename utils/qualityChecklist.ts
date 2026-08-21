@@ -1,4 +1,14 @@
-import { extractHeadings, extractLinks, countWords, getParagraphs } from "./markdown";
+import {
+  extractHeadings,
+  extractLinks,
+  countWords,
+  getParagraphs,
+  countSentences,
+  countBulletListBlocks,
+  countNumberedListBlocks,
+  countPullQuotes,
+  getPreHeadingParagraphs,
+} from "./markdown";
 
 export interface QualityCheckResult {
   id: number;
@@ -163,6 +173,35 @@ export function runQualityChecklist({
       passed: !/\[MOCK\]/i.test(markdown),
     },
     { id: 30, label: "Headings follow a sane hierarchy", passed: hierarchySane },
+    {
+      id: 31,
+      label: "Hook opens with 3-5 short standalone lines",
+      passed: (() => {
+        const preHeading = getPreHeadingParagraphs(markdown);
+        const shortLines = preHeading.filter((p) => p.split(/\s+/).filter(Boolean).length <= 12);
+        return shortLines.length >= 3 && shortLines.length <= 6;
+      })(),
+    },
+    {
+      id: 32,
+      label: "Paragraphs are max 3 sentences each",
+      passed: paragraphs.every((p) => countSentences(p) <= 3),
+    },
+    {
+      id: 33,
+      label: "Has at least 2 bullet-list sections",
+      passed: countBulletListBlocks(markdown) >= 2,
+    },
+    {
+      id: 34,
+      label: "Has at least 1 numbered-list section",
+      passed: countNumberedListBlocks(markdown) >= 1,
+    },
+    {
+      id: 35,
+      label: "Has at least 1 styled pull quote",
+      passed: countPullQuotes(markdown) >= 1,
+    },
   ];
 
   return checks;

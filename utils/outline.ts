@@ -30,7 +30,7 @@ interface GenerateOutlineInput {
 function buildMockResult({ categoryLabel, topic }: GenerateOutlineInput): OutlineGenerationResult {
   return {
     outline: {
-      hook: `[MOCK] Imagine tackling "${topic}" with a clear, ${categoryLabel.toLowerCase()}-focused plan instead of guesswork.`,
+      hook: `[MOCK] Most people get "${topic}" wrong.\n\nNobody tells you why.\n\nHere's what the ${categoryLabel.toLowerCase()} research actually says.`,
       quickAnswer: `[MOCK] The short answer: ${topic} comes down to a few repeatable habits backed by current ${categoryLabel.toLowerCase()} research — this article breaks them down.`,
       topicBreakdown: [
         "Why this matters now — framing the problem in today's context",
@@ -75,7 +75,7 @@ Research findings:
 ${researchSummary}
 
 Produce a structured outline with these exact sections:
-- hook: a compelling 1-2 sentence opening hook
+- hook: 3-5 short, punchy, single-sentence statements that ease the reader in (never a dense paragraph). Each statement should stand alone and be no more than ~8 words. Separate each statement with two newline characters (\\n\\n) so it renders as its own line. Example shape: "Most men struggle with this.\\n\\nNobody talks about why.\\n\\nThe science is clear—here's what to do."
 - quickAnswer: a direct 30-second answer to the core question/topic (2-4 sentences)
 - topicBreakdown: an array of 4-6 subsection headers, each formatted as "Header — one-sentence description"
 - example: one concrete example or mini case study illustrating the topic

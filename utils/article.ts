@@ -96,15 +96,36 @@ function buildMockMarkdown(input: ArticleGenerationInput, mainKeyword: string, l
           ? ` We also cover this in more depth in [${articleB.title}](${articleB.url}).`
           : "";
 
-    const para1 = `${item}. In practice, this comes down to a handful of repeatable habits rather than one big overhaul — start small, track what changes, and adjust from there.${internalLinkSentence}`;
+    const para1 = `${item}. In practice, this comes down to a handful of repeatable habits rather than one big overhaul.${internalLinkSentence}`;
 
-    const para2 = `According to ${nextCitation()}, ${nextFinding().toLowerCase()} This lines up with what most people experience once they apply the framework consistently for a few weeks, and it's a big part of why quick fixes tend not to stick the way a small, repeatable habit does.`;
+    const para2 = `According to ${nextCitation()}, ${nextFinding().toLowerCase()} That's a big part of why quick fixes tend not to stick.`;
 
-    const para3 = `The practical takeaway for ${categoryLower} is to treat this as a system, not a single decision. ${nextFinding()} — which is exactly why tracking progress weekly, rather than expecting overnight change, tends to produce better long-term results.`;
+    const para3 = `Treat this as a system, not a single decision for ${categoryLower}. ${nextFinding()}`;
 
-    const para4 = `It's worth being specific here rather than relying on vague intentions. Pick one concrete change related to ${mainKeyword}, apply it for two weeks, and only then decide whether to adjust — most people give up on a habit before it's had time to actually show results, and that's usually the real reason progress stalls rather than the approach itself being wrong. This is also where it helps to write the plan down somewhere visible, since intentions that live only in your head are the easiest ones to quietly drop the moment the week gets busy.`;
+    if (index === 0) {
+      const steps = [
+        `Pick one concrete change related to ${mainKeyword}.`,
+        `Apply it consistently for two weeks before judging results.`,
+        `Track progress weekly instead of expecting overnight change.`,
+      ];
+      const numberedList = steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+      const pullQuote = `> **"${nextFinding()}"**\n>\n> *That's the difference between a fad and a habit that sticks.*`;
 
-    return `## ${header}\n\n${para1}\n\n${para2}\n\n${para3}\n\n${para4}`;
+      return `## ${header}\n\n${para1}\n\n${para2}\n\n${pullQuote}\n\n${para3}\n\n${numberedList}`;
+    }
+
+    if (index === 1) {
+      const watchFor = [
+        `Chasing intensity instead of consistency.`,
+        `Giving up before the habit has time to compound.`,
+        `Treating the plan as a one-off instead of a system.`,
+      ];
+      const bulletList = watchFor.map((w) => `- ${w}`).join("\n");
+
+      return `## ${header}\n\n${para1}\n\n${para2}\n\nWatch out for a few common mistakes:\n\n${bulletList}\n\n${para3}`;
+    }
+
+    return `## ${header}\n\n${para1}\n\n${para2}\n\n${para3}`;
   });
 
   const faqBlocks = outline.faqs
@@ -264,6 +285,15 @@ Hard requirements — the article will be rejected if any of these are missed:
 - That section must literally mention "@atlasnetwork.club" and the word "Instagram".
 - Include roughly 8-10 external citation links total (spread across the body, e.g. "According to [Forbes](https://www.forbes.com/)..."), pointing to real, well-known, relevant domains for the category (e.g. Forbes, Harvard Business Review, Mayo Clinic, CDC, APA, ESPN, Pew Research, McKinsey). These external links must outnumber internal links by roughly 3:2 or more — internal links are capped at 2-3 in the body plus exactly 3 in Related Reading, so err toward more external citations, not fewer.
 - Weave in 2-3 of the related atlasnetwork.club articles above as natural in-body links, using their exact URLs, plus list all 3 again under a closing "## Related Reading" section as a markdown list.
+
+Formatting & pacing — ATLAS Network's brand voice is fast to read and easy to scan. The article will be rejected if any of these are missed:
+- Paragraphs: maximum 3 sentences each, target 2. Break up longer thoughts into multiple short paragraphs instead of one dense block. Use generous whitespace — never write a paragraph that reads as a wall of text.
+- Lists: include at least 2-3 bullet-point list sections and at least 1-2 numbered lists (for step-by-step content) somewhere in the body. Each bullet/number item should be 1-2 sentences max. Lists should break up sections naturally, not be forced.
+- Pull quotes: include 1-2 centerpiece pull quotes in the body (this article is 1,500+ words, so they're mandatory). Format each EXACTLY like this, using literal markdown blockquote lines:
+  > **"Your powerful statement here."**
+  >
+  > *Make this line impactful*
+  Pull quotes should feel like a visual pause point — pull a genuinely striking line from the surrounding content, don't invent a generic filler quote.
 
 Respond in EXACTLY this format — not JSON, this exact plain-text structure, because it gets parsed programmatically by splitting on the delimiter line:
 
