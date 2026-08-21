@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import Header from "../components/layout/Header";
 import Sidebar from "../components/layout/Sidebar";
+import SaveDraftButton from "../components/layout/SaveDraftButton";
 import StepOneTopic from "../components/steps/StepOneTopic";
 import StepTwoImageKeywords, { KeywordItem } from "../components/steps/StepTwoImageKeywords";
 import StepThreeOutline from "../components/steps/StepThreeOutline";
@@ -45,8 +47,28 @@ interface ArticleRecord {
   checklist: QualityCheckResult[];
 }
 
+interface DraftState {
+  selectedCategory: Category | null;
+  prompt: string;
+  headerImageUrl: string | null;
+  referenceKeywords: string;
+  keywordResearchResult: KeywordResearchResult | null;
+  researchQueries: ResearchQuery[];
+  extractedTopic: string;
+  keywords: KeywordItem[];
+  outline: BlogOutline | null;
+  outlineText: string;
+  articleData: ArticleRecord | null;
+  publishDate: string;
+  publishTime: string;
+  timezone: string;
+}
+
 export default function Home() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<StepNumber>(1);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
   // Step 1: topic & prompt
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -272,11 +294,96 @@ export default function Home() {
     setPublishError(null);
     setIsPublished(false);
     setCurrentStep(1);
+    setDraftId(null);
   }
 
   function handleReset() {
     setCurrentStep(1);
   }
+
+  function buildDraftState(): DraftState {
+    return {
+      selectedCategory,
+      prompt,
+      headerImageUrl,
+      referenceKeywords,
+      keywordResearchResult,
+      researchQueries,
+      extractedTopic,
+      keywords,
+      outline,
+      outlineText,
+      articleData,
+      publishDate,
+      publishTime,
+      timezone,
+    };
+  }
+
+  function applyDraftState(state: DraftState) {
+    setSelectedCategory(state.selectedCategory);
+    setPrompt(state.prompt);
+    setHeaderImageUrl(state.headerImageUrl);
+    setReferenceKeywords(state.referenceKeywords);
+    setKeywordResearchResult(state.keywordResearchResult);
+    setResearchQueries(state.researchQueries);
+    setExtractedTopic(state.extractedTopic);
+    setKeywords(state.keywords);
+    setOutline(state.outline);
+    setOutlineText(state.outlineText);
+    setArticleData(state.articleData);
+    setPublishDate(state.publishDate);
+    setPublishTime(state.publishTime);
+    setTimezone(state.timezone);
+  }
+
+  async function handleSaveDraft() {
+    const title =
+      articleData?.title || extractedTopic || prompt.slice(0, 60) || "Untitled draft";
+
+    const response = await fetch("/api/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: draftId,
+        title,
+        category: selectedCategory,
+        currentStep,
+        state: buildDraftState(),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error ?? `Request failed with status ${response.status}`);
+    }
+
+    setDraftId(data.id as string);
+  }
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const draftParam = router.query.draft;
+    if (typeof draftParam !== "string" || !draftParam) return;
+
+    setIsLoadingDraft(true);
+    fetch(`/api/drafts/${draftParam}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Failed to load draft");
+        applyDraftState(data.state as DraftState);
+        setCurrentStep((data.current_step as StepNumber) ?? 1);
+        setDraftId(data.id as string);
+      })
+      .catch((error) => {
+        console.error("Failed to load draft:", error);
+      })
+      .finally(() => setIsLoadingDraft(false));
+    // Only run once router params are ready — draft loading shouldn't re-fire
+    // as the user edits wizard state afterward.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
 
   async function fetchArticle(outlineArg: BlogOutline, editInstructions?: string) {
     setIsArticleLoading(true);
@@ -523,7 +630,15 @@ export default function Home() {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar currentStep={currentStep} finalStepComplete={scheduleResult !== null} />
-        <main className="flex-1 overflow-y-auto px-8 py-10">{renderMain()}</main>
+        <main className="flex-1 overflow-y-auto px-8 py-10">
+          <div className="mb-6 flex justify-end">
+            <SaveDraftButton
+              onSave={handleSaveDraft}
+              disabled={isLoadingDraft || (!selectedCategory && !prompt.trim())}
+            />
+          </div>
+          {renderMain()}
+        </main>
       </div>
     </div>
   );
