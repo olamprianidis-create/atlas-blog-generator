@@ -1,14 +1,40 @@
+import { useEffect, useState } from "react";
 import Spinner from "../Spinner";
 import RichTextEditor from "../RichTextEditor";
-import { PLACEHOLDER_RELATED_ARTICLES } from "../../utils/relatedArticles";
+import type { RelatedArticleItem } from "../../utils/relatedArticles";
+import type { Category } from "../../utils/types";
 
 interface StepThreeOutlineProps {
   outlineText: string;
   onOutlineTextChange: (value: string) => void;
   isLoading: boolean;
   error: string | null;
+  category: Category | null;
+  topic: string;
+  onRelatedArticlesChange: (articles: RelatedArticleItem[]) => void;
   onBack: () => void;
   onApprove: () => void;
+}
+
+function formatPublishDate(iso: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function ArticleLink({ article }: { article: RelatedArticleItem }) {
+  return (
+    <a
+      href={article.url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center justify-between gap-3 text-sm"
+    >
+      <span className="font-medium text-blue-600 hover:underline">{article.title}</span>
+      {article.publishDate && (
+        <span className="shrink-0 text-xs text-slate-400">{formatPublishDate(article.publishDate)}</span>
+      )}
+    </a>
+  );
 }
 
 export default function StepThreeOutline({
@@ -16,9 +42,59 @@ export default function StepThreeOutline({
   onOutlineTextChange,
   isLoading,
   error,
+  category,
+  topic,
+  onRelatedArticlesChange,
   onBack,
   onApprove,
 }: StepThreeOutlineProps) {
+  const [recommended, setRecommended] = useState<RelatedArticleItem[]>([]);
+  const [recent, setRecent] = useState<RelatedArticleItem[]>([]);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
+  const [relatedError, setRelatedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!category) {
+      setRecommended([]);
+      setRecent([]);
+      onRelatedArticlesChange([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingRelated(true);
+    setRelatedError(null);
+
+    fetch("/api/related-articles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, topic }),
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Failed to load related articles");
+        if (!cancelled) {
+          const recommendedArticles: RelatedArticleItem[] = data.recommended ?? [];
+          setRecommended(recommendedArticles);
+          setRecent(data.recent ?? []);
+          onRelatedArticlesChange(recommendedArticles);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setRelatedError(err instanceof Error ? err.message : "Failed to load related articles");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingRelated(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl">
@@ -77,27 +153,56 @@ export default function StepThreeOutline({
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Related Articles for Internal Linking
         </h3>
-        <div className="mt-2 rounded-lg border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-xs text-slate-400">
-            Latest published articles on atlasnetwork.club — for internal-link context when writing the
-            full article.
+        <p className="mt-1 text-xs text-slate-400">
+          Published articles on atlasnetwork.club in this category — for internal-link context when
+          writing the full article.
+        </p>
+
+        {!category ? (
+          <p className="mt-3 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            Select a category on Step 1 to see related published articles.
           </p>
-          <ul className="space-y-3">
-            {PLACEHOLDER_RELATED_ARTICLES.map((article) => (
-              <li key={article.url} className="text-sm">
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-blue-600 hover:underline"
-                >
-                  {article.title}
-                </a>
-                <span className="ml-2 text-xs text-slate-400">{article.category}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        ) : isLoadingRelated ? (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            <Spinner /> Loading related articles…
+          </div>
+        ) : relatedError ? (
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {relatedError}
+          </p>
+        ) : recent.length === 0 ? (
+          <p className="mt-3 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+            No published articles yet in this category.
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Top 3 Recommended
+              </h4>
+              <ul className="space-y-3">
+                {recommended.map((article) => (
+                  <li key={article.id}>
+                    <ArticleLink article={article} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Last {recent.length} Published in This Category
+              </h4>
+              <ul className="space-y-3">
+                {recent.map((article) => (
+                  <li key={article.id}>
+                    <ArticleLink article={article} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 flex justify-end gap-3">

@@ -7,6 +7,7 @@ import { countWords, calculateReadingTime } from "../../utils/markdown";
 import type { BlogOutline } from "../../utils/outline";
 import type { ResearchQuery } from "../../utils/webSearch";
 import { Category, CATEGORIES } from "../../utils/types";
+import type { RelatedArticleItem } from "../../utils/relatedArticles";
 
 interface GenerateArticleRequestBody {
   category?: unknown;
@@ -14,7 +15,21 @@ interface GenerateArticleRequestBody {
   outline?: unknown;
   keywords?: unknown;
   research?: unknown;
+  relatedArticles?: unknown;
   editInstructions?: unknown;
+}
+
+function isRelatedArticleList(value: unknown): value is RelatedArticleItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        typeof (item as RelatedArticleItem).title === "string" &&
+        typeof (item as RelatedArticleItem).url === "string"
+    )
+  );
 }
 
 interface GenerateArticleResponse {
@@ -56,7 +71,7 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, topic, outline, keywords, research, editInstructions } =
+  const { category, topic, outline, keywords, research, relatedArticles, editInstructions } =
     req.body as GenerateArticleRequestBody;
 
   if (!isOutline(outline)) {
@@ -73,6 +88,7 @@ export default async function handler(
     : "General";
   const topicText = typeof topic === "string" && topic.trim() ? topic.trim() : categoryLabel;
   const researchList: ResearchQuery[] = Array.isArray(research) ? (research as ResearchQuery[]) : [];
+  const relatedArticlesList: RelatedArticleItem[] = isRelatedArticleList(relatedArticles) ? relatedArticles : [];
   const editInstructionsText =
     typeof editInstructions === "string" && editInstructions.trim() ? editInstructions.trim() : undefined;
 
@@ -83,6 +99,7 @@ export default async function handler(
       outline,
       keywords,
       research: researchList,
+      relatedArticles: relatedArticlesList,
       editInstructions: editInstructionsText,
     });
 

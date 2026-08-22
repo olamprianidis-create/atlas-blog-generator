@@ -3,7 +3,7 @@ import path from "path";
 import { generateTextChecked } from "./anthropic";
 import type { BlogOutline } from "./outline";
 import type { ResearchQuery } from "./webSearch";
-import { PLACEHOLDER_RELATED_ARTICLES } from "./relatedArticles";
+import type { RelatedArticleItem } from "./relatedArticles";
 
 export interface ArticleGenerationInput {
   categoryLabel: string;
@@ -11,7 +11,39 @@ export interface ArticleGenerationInput {
   outline: BlogOutline;
   keywords: string[];
   research: ResearchQuery[];
+  relatedArticles: RelatedArticleItem[];
   editInstructions?: string;
+}
+
+// Used only for MOCK_MODE test output when no real published articles are
+// available yet to recommend for internal linking.
+const MOCK_FALLBACK_RELATED_ARTICLES: RelatedArticleItem[] = [
+  {
+    id: "mock-1",
+    title: "5 Habits Every First-Time Founder Should Build Early",
+    url: "https://atlasnetwork.club/article/first-time-founder-habits",
+    category: "entrepreneurship",
+    publishDate: null,
+  },
+  {
+    id: "mock-2",
+    title: "Why Community Support Predicts Long-Term Success",
+    url: "https://atlasnetwork.club/article/community-support-success",
+    category: "community",
+    publishDate: null,
+  },
+  {
+    id: "mock-3",
+    title: "The Science of Recovery: Training Smarter, Not Harder",
+    url: "https://atlasnetwork.club/article/training-recovery-science",
+    category: "sports",
+    publishDate: null,
+  },
+];
+
+function withMockFallback(articles: RelatedArticleItem[]): RelatedArticleItem[] {
+  if (articles.length >= 3) return articles;
+  return [...articles, ...MOCK_FALLBACK_RELATED_ARTICLES].slice(0, 3);
 }
 
 export interface ArticleGenerationResult {
@@ -65,7 +97,7 @@ function buildMockMarkdown(input: ArticleGenerationInput, mainKeyword: string, l
   const { categoryLabel, topic, outline, research, editInstructions } = input;
   const title = `${topic.charAt(0).toUpperCase()}${topic.slice(1)}: A Practical ${categoryLabel} Guide`;
 
-  const [articleA, articleB, articleC] = PLACEHOLDER_RELATED_ARTICLES;
+  const [articleA, articleB, articleC] = withMockFallback(input.relatedArticles);
   let citationIndex = 0;
   const nextCitation = () => {
     const citation = EXTERNAL_CITATIONS[citationIndex % EXTERNAL_CITATIONS.length];
@@ -251,9 +283,9 @@ export async function generateArticle(input: ArticleGenerationInput): Promise<Ar
   const researchSummary = input.research
     .map((r) => `Query: ${r.query}\n${r.findings.map((f) => `- ${f}`).join("\n")}`)
     .join("\n\n");
-  const relatedArticlesList = PLACEHOLDER_RELATED_ARTICLES.map(
-    (a) => `- ${a.title} — ${a.url} (${a.category})`
-  ).join("\n");
+  const relatedArticlesList = withMockFallback(input.relatedArticles)
+    .map((a) => `- ${a.title} — ${a.url} (${a.category})`)
+    .join("\n");
 
   const editInstructionsBlock = input.editInstructions
     ? `\n\nThe user requested these edits to a previous draft — apply them:\n${input.editInstructions}`

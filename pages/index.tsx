@@ -17,6 +17,7 @@ import { runQualityChecklist, type QualityCheckResult } from "../utils/qualityCh
 import { countWords, calculateReadingTime } from "../utils/markdown";
 import { serializeOutline, parseOutlineText } from "../utils/outlineSerialize";
 import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview, parsePublishDate } from "../utils/timezones";
+import type { RelatedArticleItem } from "../utils/relatedArticles";
 
 interface ResearchKeywordsApiResponse {
   research: ResearchQuery[];
@@ -132,6 +133,7 @@ export default function Home() {
   const [isOutlineLoading, setIsOutlineLoading] = useState(false);
   const [outlineError, setOutlineError] = useState<string | null>(null);
   const [lastOutlineSignature, setLastOutlineSignature] = useState<string | null>(null);
+  const [relatedArticles, setRelatedArticles] = useState<RelatedArticleItem[]>([]);
   const [lastArticleSignature, setLastArticleSignature] = useState<string | null>(null);
 
   // Step 4: full article
@@ -559,6 +561,7 @@ export default function Home() {
           outline: outlineArg,
           keywords: keywords.map((k) => k.text),
           research: researchQueries,
+          relatedArticles,
           editInstructions,
         }),
       });
@@ -780,6 +783,9 @@ export default function Home() {
           onOutlineTextChange={setOutlineText}
           isLoading={isOutlineLoading}
           error={outlineError}
+          category={selectedCategory}
+          topic={extractedTopic || prompt}
+          onRelatedArticlesChange={setRelatedArticles}
           onBack={handleBackToStep2}
           onApprove={handleApproveOutline}
         />
