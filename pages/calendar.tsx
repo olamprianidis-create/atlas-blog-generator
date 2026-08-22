@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Header from "../components/layout/Header";
 import CalendarDayModal, { CalendarEventItem, ScheduledArticleForDay } from "../components/CalendarDayModal";
+import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
 const CHECKED_COLOR = "#5f7644";
 const PAST_UNCHECKED_COLOR = "#f2730b";
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const MAX_VISIBLE_CHIPS = 2;
+
+function platformColorClass(value: string) {
+  return PLATFORMS.find((p) => p.value === value)?.colorClass ?? "bg-slate-400";
+}
+
+function platformLabel(value: string) {
+  return PLATFORMS.find((p) => p.value === value)?.label ?? value;
+}
 
 interface ScheduledArticleRow {
   id: string;
@@ -134,6 +144,35 @@ export default function CalendarPage() {
     return events.filter((event) => event.event_date === dateStr);
   }
 
+  function getChipsForDate(dateStr: string): { key: string; label: string; colorClass: string }[] {
+    const chips: { key: string; label: string; colorClass: string }[] = [];
+
+    const article = findArticleForDate(dateStr);
+    if (article) {
+      chips.push({ key: `article-${article.id}`, label: article.title, colorClass: BLOG_POST_COLOR_CLASS });
+    }
+
+    for (const event of eventsForDate(dateStr)) {
+      if (event.platforms.length === 0) {
+        chips.push({
+          key: `event-${event.id}`,
+          label: event.description || "Event",
+          colorClass: "bg-slate-400",
+        });
+        continue;
+      }
+      for (const platform of event.platforms) {
+        chips.push({
+          key: `event-${event.id}-${platform}`,
+          label: event.description || platformLabel(platform),
+          colorClass: platformColorClass(platform),
+        });
+      }
+    }
+
+    return chips;
+  }
+
   return (
     <div className="flex h-screen flex-col bg-slate-50">
       <Header />
@@ -179,7 +218,7 @@ export default function CalendarPage() {
                       return (
                         <div
                           key={colIndex}
-                          className="min-h-[92px] border-r border-slate-100 bg-slate-50 last:border-r-0"
+                          className="min-h-[104px] border-r border-slate-100 bg-slate-50 last:border-r-0"
                         />
                       );
                     }
@@ -188,10 +227,9 @@ export default function CalendarPage() {
                     const isChecked = checkedDays.has(dateStr);
                     const isPast = dateStr < today;
                     const isTodayCell = dateStr === today;
-                    const hasEvents = events.some((e) => e.event_date === dateStr);
-                    const hasArticle = scheduledArticles.some(
-                      (a) => a.publish_date && a.publish_date.slice(0, 10) === dateStr
-                    );
+                    const chips = getChipsForDate(dateStr);
+                    const visibleChips = chips.slice(0, MAX_VISIBLE_CHIPS);
+                    const overflowCount = chips.length - visibleChips.length;
 
                     const cellStyle = isChecked
                       ? { backgroundColor: CHECKED_COLOR }
@@ -206,21 +244,31 @@ export default function CalendarPage() {
                         type="button"
                         onClick={() => setSelectedDate(dateStr)}
                         style={cellStyle}
-                        className={`relative min-h-[92px] border-r border-slate-100 p-2 text-left transition-colors last:border-r-0 hover:brightness-95 ${
+                        className={`relative flex min-h-[104px] flex-col gap-1 border-r border-slate-100 p-2 pb-7 text-left transition-colors last:border-r-0 hover:brightness-95 ${
                           cellStyle ? "" : "bg-white"
                         }`}
                       >
                         <span
-                          className={`text-sm font-semibold ${textTone} ${isTodayCell && !cellStyle ? "rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
+                          className={`shrink-0 text-sm font-semibold ${textTone} ${isTodayCell && !cellStyle ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
                         >
                           {day}
                         </span>
 
-                        {(hasArticle || hasEvents) && (
-                          <span
-                            className={`absolute left-2 top-8 h-1.5 w-1.5 rounded-full ${cellStyle ? "bg-white" : "bg-blue-500"}`}
-                          />
-                        )}
+                        <div className="flex min-w-0 flex-col gap-1">
+                          {visibleChips.map((chip) => (
+                            <span
+                              key={chip.key}
+                              className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
+                                cellStyle ? "ring-1 ring-white/40" : ""
+                              }`}
+                            >
+                              {chip.label}
+                            </span>
+                          ))}
+                          {overflowCount > 0 && (
+                            <span className={`text-[10px] font-medium ${textTone}`}>+{overflowCount} more</span>
+                          )}
+                        </div>
 
                         <span
                           role="checkbox"
@@ -275,9 +323,15 @@ export default function CalendarPage() {
               Upcoming
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              Has scheduled post or event
+              <span className={`h-3 w-3 rounded ${BLOG_POST_COLOR_CLASS}`} />
+              Blog post
             </span>
+            {PLATFORMS.map((platform) => (
+              <span key={platform.value} className="flex items-center gap-1.5">
+                <span className={`h-3 w-3 rounded ${platform.colorClass}`} />
+                {platform.label}
+              </span>
+            ))}
           </div>
         </div>
       </main>
@@ -289,6 +343,10 @@ export default function CalendarPage() {
           events={eventsForDate(selectedDate)}
           onClose={() => setSelectedDate(null)}
           onEventCreated={(event) => setEvents((current) => [...current, event])}
+          onEventUpdated={(event) =>
+            setEvents((current) => current.map((e) => (e.id === event.id ? event : e)))
+          }
+          onEventDeleted={(eventId) => setEvents((current) => current.filter((e) => e.id !== eventId))}
         />
       )}
     </div>

@@ -34,3 +34,5 @@ export const PLATFORMS: { value: Platform; label: string; colorClass: string }[]
   { value: "pinterest", label: "Pinterest", colorClass: "bg-rose-600" },
   { value: "facebook", label: "Facebook", colorClass: "bg-blue-600" },
 ];
+
+export const BLOG_POST_COLOR_CLASS = "bg-teal-600";

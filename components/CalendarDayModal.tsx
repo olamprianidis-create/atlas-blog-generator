@@ -23,6 +23,8 @@ interface CalendarDayModalProps {
   events: CalendarEventItem[];
   onClose: () => void;
   onEventCreated: (event: CalendarEventItem) => void;
+  onEventUpdated: (event: CalendarEventItem) => void;
+  onEventDeleted: (eventId: string) => void;
 }
 
 function formatDateLabel(dateStr: string) {
@@ -40,19 +42,37 @@ function platformMeta(value: string) {
   return PLATFORMS.find((p) => p.value === value);
 }
 
-export default function CalendarDayModal({
-  dateStr,
-  scheduledArticle,
-  events,
-  onClose,
-  onEventCreated,
-}: CalendarDayModalProps) {
-  const [isAddingEvent, setIsAddingEvent] = useState(false);
-  const [platforms, setPlatforms] = useState<Platform[]>([]);
-  const [description, setDescription] = useState("");
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+interface EventFormProps {
+  initialPlatforms: Platform[];
+  initialDescription: string;
+  initialThumbnailUrl: string | null;
+  submitLabel: string;
+  savingLabel: string;
+  onCancel: () => void;
+  onSubmit: (data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }) => Promise<void>;
+  onDelete?: () => Promise<void>;
+  deleteLabel?: string;
+  deletingLabel?: string;
+}
+
+function EventForm({
+  initialPlatforms,
+  initialDescription,
+  initialThumbnailUrl,
+  submitLabel,
+  savingLabel,
+  onCancel,
+  onSubmit,
+  onDelete,
+  deleteLabel = "Delete",
+  deletingLabel = "Deleting...",
+}: EventFormProps) {
+  const [platforms, setPlatforms] = useState<Platform[]>(initialPlatforms);
+  const [description, setDescription] = useState(initialDescription);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(initialThumbnailUrl);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleThumbnailSelect(file: File) {
@@ -74,33 +94,187 @@ export default function CalendarDayModal({
     }
   }
 
-  async function handleSaveEvent() {
+  async function handleSubmit() {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await fetch("/api/calendar/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventDate: dateStr,
-          platforms,
-          description: description.trim() || undefined,
-          thumbnailUrl: thumbnailUrl || undefined,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Failed to save event");
-
-      onEventCreated(data as CalendarEventItem);
-      setPlatforms([]);
-      setDescription("");
-      setThumbnailUrl(null);
-      setIsAddingEvent(false);
+      await onSubmit({ platforms, description, thumbnailUrl });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save event");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleDelete() {
+    if (!onDelete) return;
+    if (!window.confirm("Delete this event? This can't be undone.")) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await onDelete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete event");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+          Platform <span className="font-normal normal-case text-slate-400">(optional)</span>
+        </p>
+        <PlatformPicker selected={platforms} onChange={setPlatforms} />
+      </div>
+
+      <div>
+        <label
+          htmlFor="event-description"
+          className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500"
+        >
+          Description <span className="font-normal normal-case text-slate-400">(optional)</span>
+        </label>
+        <textarea
+          id="event-description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={3}
+          placeholder="What's the plan for this post?"
+          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+          Thumbnail <span className="font-normal normal-case text-slate-400">(optional)</span>
+        </p>
+        {thumbnailUrl ? (
+          <div className="flex items-center gap-3">
+            <img src={thumbnailUrl} alt="" className="h-14 w-14 rounded-md object-cover" />
+            <button
+              type="button"
+              onClick={() => setThumbnailUrl(null)}
+              className="text-xs font-medium text-slate-500 hover:text-slate-700"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-400 hover:border-slate-400">
+            {isUploadingThumbnail ? (
+              <span className="text-[10px]">...</span>
+            ) : (
+              <span className="text-lg leading-none">+</span>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={isUploadingThumbnail}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleThumbnailSelect(file);
+              }}
+            />
+          </label>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
+      <div className="flex items-center justify-between gap-2">
+        {onDelete ? (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isDeleting ? deletingLabel : deleteLabel}
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSaving ? savingLabel : submitLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CalendarDayModal({
+  dateStr,
+  scheduledArticle,
+  events,
+  onClose,
+  onEventCreated,
+  onEventUpdated,
+  onEventDeleted,
+}: CalendarDayModalProps) {
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+
+  async function handleCreate(data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }) {
+    const response = await fetch("/api/calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventDate: dateStr,
+        platforms: data.platforms,
+        description: data.description.trim() || undefined,
+        thumbnailUrl: data.thumbnailUrl || undefined,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? "Failed to save event");
+    onEventCreated(result as CalendarEventItem);
+    setIsAddingEvent(false);
+  }
+
+  async function handleUpdate(
+    eventId: string,
+    data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }
+  ) {
+    const response = await fetch(`/api/calendar/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platforms: data.platforms,
+        description: data.description.trim() || undefined,
+        thumbnailUrl: data.thumbnailUrl || undefined,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? "Failed to update event");
+    onEventUpdated(result as CalendarEventItem);
+    setEditingEventId(null);
+  }
+
+  async function handleDelete(eventId: string) {
+    const response = await fetch(`/api/calendar/events/${eventId}`, { method: "DELETE" });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error ?? "Failed to delete event");
+    }
+    onEventDeleted(eventId);
+    setEditingEventId(null);
   }
 
   return (
@@ -165,35 +339,58 @@ export default function CalendarDayModal({
 
         {events.length > 0 && (
           <div className="mt-4 flex flex-col gap-2">
-            {events.map((event) => (
-              <div key={event.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
-                {event.thumbnail_url ? (
-                  <img src={event.thumbnail_url} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />
-                ) : (
-                  <div className="h-10 w-10 shrink-0 rounded-md bg-slate-100" />
-                )}
-                <div className="min-w-0 flex-1">
-                  {event.platforms.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {event.platforms.map((p) => {
-                        const meta = platformMeta(p);
-                        return (
-                          <span
-                            key={p}
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium text-white ${meta?.colorClass ?? "bg-slate-400"}`}
-                          >
-                            {meta?.label ?? p}
-                          </span>
-                        );
-                      })}
-                    </div>
+            {events.map((event) =>
+              editingEventId === event.id ? (
+                <EventForm
+                  key={event.id}
+                  initialPlatforms={event.platforms as Platform[]}
+                  initialDescription={event.description ?? ""}
+                  initialThumbnailUrl={event.thumbnail_url}
+                  submitLabel="Save Changes"
+                  savingLabel="Saving..."
+                  onCancel={() => setEditingEventId(null)}
+                  onSubmit={(data) => handleUpdate(event.id, data)}
+                  onDelete={() => handleDelete(event.id)}
+                />
+              ) : (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => setEditingEventId(event.id)}
+                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  {event.thumbnail_url ? (
+                    <img src={event.thumbnail_url} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 shrink-0 rounded-md bg-slate-100" />
                   )}
-                  {event.description && (
-                    <p className="mt-1 truncate text-xs text-slate-600">{event.description}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    {event.platforms.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {event.platforms.map((p) => {
+                          const meta = platformMeta(p);
+                          return (
+                            <span
+                              key={p}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium text-white ${meta?.colorClass ?? "bg-slate-400"}`}
+                            >
+                              {meta?.label ?? p}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {event.description && (
+                      <p className="mt-1 truncate text-xs text-slate-600">{event.description}</p>
+                    )}
+                    {!event.description && event.platforms.length === 0 && (
+                      <p className="mt-1 text-xs text-slate-400">Untitled event</p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-slate-400">Edit</span>
+                </button>
+              )
+            )}
           </div>
         )}
 
@@ -210,84 +407,15 @@ export default function CalendarDayModal({
               </svg>
             </button>
           ) : (
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Platform <span className="font-normal normal-case text-slate-400">(optional)</span>
-                </p>
-                <PlatformPicker selected={platforms} onChange={setPlatforms} />
-              </div>
-
-              <div>
-                <label htmlFor="event-description" className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Description <span className="font-normal normal-case text-slate-400">(optional)</span>
-                </label>
-                <textarea
-                  id="event-description"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  rows={3}
-                  placeholder="What's the plan for this post?"
-                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Thumbnail <span className="font-normal normal-case text-slate-400">(optional)</span>
-                </p>
-                {thumbnailUrl ? (
-                  <div className="flex items-center gap-3">
-                    <img src={thumbnailUrl} alt="" className="h-14 w-14 rounded-md object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setThumbnailUrl(null)}
-                      className="text-xs font-medium text-slate-500 hover:text-slate-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-400 hover:border-slate-400">
-                    {isUploadingThumbnail ? (
-                      <span className="text-[10px]">...</span>
-                    ) : (
-                      <span className="text-lg leading-none">+</span>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={isUploadingThumbnail}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void handleThumbnailSelect(file);
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-
-              {error && <p className="text-xs text-red-600">{error}</p>}
-
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingEvent(false)}
-                  className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveEvent}
-                  disabled={isSaving}
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSaving ? "Saving..." : "Add Event"}
-                </button>
-              </div>
-            </div>
+            <EventForm
+              initialPlatforms={[]}
+              initialDescription=""
+              initialThumbnailUrl={null}
+              submitLabel="Add Event"
+              savingLabel="Saving..."
+              onCancel={() => setIsAddingEvent(false)}
+              onSubmit={handleCreate}
+            />
           )}
         </div>
       </div>
