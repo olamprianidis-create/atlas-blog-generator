@@ -15,33 +15,49 @@ interface ScheduledArticleDetail {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ScheduledArticleDetail | { error: string }>
+  res: NextApiResponse<ScheduledArticleDetail | { error: string } | Record<string, never>>
 ) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
   const { id } = req.query;
   if (typeof id !== "string" || !id) {
     return res.status(400).json({ error: "Missing article id" });
   }
 
-  try {
-    const supabase = getServiceClient();
-    const { data, error } = await supabase
-      .from("scheduled_articles")
-      .select("id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url")
-      .eq("id", id)
-      .single();
+  const supabase = getServiceClient();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Article not found" });
+  if (req.method === "GET") {
+    try {
+      const { data, error } = await supabase
+        .from("scheduled_articles")
+        .select("id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url")
+        .eq("id", id)
+        .single();
 
-    return res.status(200).json(data as ScheduledArticleDetail);
-  } catch (error) {
-    console.error("get scheduled article failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(502).json({ error: `Failed to load article: ${message}` });
+      if (error) throw error;
+      if (!data) return res.status(404).json({ error: "Article not found" });
+
+      return res.status(200).json(data as ScheduledArticleDetail);
+    } catch (error) {
+      console.error("get scheduled article failed:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return res.status(502).json({ error: `Failed to load article: ${message}` });
+    }
   }
+
+  if (req.method === "DELETE") {
+    try {
+      await supabase.from("article_history").delete().eq("article_id", id);
+
+      const { error } = await supabase.from("scheduled_articles").delete().eq("id", id);
+      if (error) throw error;
+
+      return res.status(200).json({});
+    } catch (error) {
+      console.error("delete scheduled article failed:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return res.status(502).json({ error: `Failed to delete article: ${message}` });
+    }
+  }
+
+  res.setHeader("Allow", "GET, DELETE");
+  return res.status(405).json({ error: "Method not allowed" });
 }

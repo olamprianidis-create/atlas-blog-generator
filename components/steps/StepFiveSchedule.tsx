@@ -37,6 +37,9 @@ interface StepFiveScheduleProps {
   isPublished: boolean;
   onPublishNow: () => void;
   isEditingExisting?: boolean;
+  onDelete?: () => void;
+  isDeleting?: boolean;
+  deleteError?: string | null;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -69,6 +72,9 @@ export default function StepFiveSchedule({
   isPublished,
   onPublishNow,
   isEditingExisting = false,
+  onDelete,
+  isDeleting = false,
+  deleteError = null,
 }: StepFiveScheduleProps) {
   const passedCount = article.checklist.filter((c) => c.passed).length;
   const totalChecks = article.checklist.length;
@@ -107,6 +113,23 @@ export default function StepFiveSchedule({
     </div>
   );
 
+  const deleteBlock = isEditingExisting && onDelete && (
+    <div className="mt-8 flex flex-col items-center gap-2 border-t border-slate-200 pt-6">
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={isDeleting}
+        className="rounded-lg border border-red-200 px-5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isDeleting ? "Deleting..." : "Delete Article"}
+      </button>
+      <p className="text-xs text-slate-400">Removes this article from the website and database permanently.</p>
+      {deleteError && (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{deleteError}</p>
+      )}
+    </div>
+  );
+
   if (scheduleResult) {
     return (
       <div className="mx-auto max-w-3xl">
@@ -132,6 +155,8 @@ export default function StepFiveSchedule({
             Next Blog
           </button>
         </div>
+
+        {deleteBlock}
       </div>
     );
   }
@@ -274,6 +299,8 @@ export default function StepFiveSchedule({
           {isSubmitting ? "Saving..." : isEditingExisting ? "Update Schedule" : "Schedule & Store"}
         </button>
       </div>
+
+      {deleteBlock}
     </div>
   );
 }

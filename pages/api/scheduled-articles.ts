@@ -7,6 +7,7 @@ interface ScheduledArticleItem {
   category: string;
   publish_date: string | null;
   meta_description: string | null;
+  image_url: string | null;
 }
 
 export default async function handler(
@@ -22,7 +23,7 @@ export default async function handler(
     const supabase = getServiceClient();
     const { data, error } = await supabase
       .from("scheduled_articles")
-      .select("id, title, category, publish_date, meta_description")
+      .select("id, title, category, publish_date, meta_description, image_url")
       .eq("status", "scheduled")
       .order("publish_date", { ascending: true });
 

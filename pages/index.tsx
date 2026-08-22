@@ -153,6 +153,8 @@ export default function Home() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
+  const [isDeletingArticle, setIsDeletingArticle] = useState(false);
+  const [deleteArticleError, setDeleteArticleError] = useState<string | null>(null);
 
   useEffect(() => {
     setMaxStepReached((current) => (currentStep > current ? currentStep : current));
@@ -706,6 +708,29 @@ export default function Home() {
     }
   }
 
+  async function handleDeleteArticle() {
+    if (!editingArticleId) return;
+    if (!window.confirm("Delete this article from the website and database? This can't be undone.")) return;
+
+    setIsDeletingArticle(true);
+    setDeleteArticleError(null);
+
+    try {
+      const response = await fetch(`/api/scheduled-articles/${editingArticleId}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? `Request failed with status ${response.status}`);
+      }
+
+      void router.push("/scheduled");
+    } catch (error) {
+      setDeleteArticleError(error instanceof Error ? error.message : "Delete failed for an unknown reason.");
+    } finally {
+      setIsDeletingArticle(false);
+    }
+  }
+
   function renderMain() {
     if (currentStep === 1) {
       return (
@@ -803,6 +828,9 @@ export default function Home() {
           isPublished={isPublished}
           onPublishNow={handlePublishNow}
           isEditingExisting={editingArticleId !== null}
+          onDelete={handleDeleteArticle}
+          isDeleting={isDeletingArticle}
+          deleteError={deleteArticleError}
         />
       );
     }
