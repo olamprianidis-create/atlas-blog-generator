@@ -174,7 +174,7 @@ Always reference this template when generating outlines and articles.
 ## Common Gotchas
 
 1. **Don't call Anthropic API directly** - Use `/utils/anthropic.ts` wrapper (handles retry logic)
-2. **Supabase scheduling runs every minute** - Test thoroughly before scheduling live
+2. **Scheduled-article publishing is checked every ~10 minutes, not continuously** — see "Scheduled publishing" below. It is NOT instant at the exact publish time.
 3. **Article template changes** - Keep Blog_Structure_Prompt_UPDATED.md in sync with generation logic
 4. **Web search can fail** - Have graceful fallback to previous research data
 5. **Keyword spreadsheet** - User provides this; code retrieves dynamically
@@ -192,6 +192,22 @@ Always reference this template when generating outlines and articles.
 - **Quality gates:** 35-point checklist runs automatically (don't skip it)
 
 ---
+
+## Scheduled publishing
+
+`pages/api/cron/publish-scheduled.ts` publishes every `scheduled_articles` row whose `publish_date` is due. Two things call it:
+- `vercel.json`'s native Vercel Cron entry — fires once a day. **This project is on Vercel's Hobby plan, which caps cron jobs at once/day regardless of the schedule string in vercel.json** — don't "fix" a publishing delay by just tightening that schedule, it silently won't take effect without a Pro upgrade.
+- `.github/workflows/publish-cron.yml` — a GitHub Actions scheduled workflow that hits the same endpoint every ~10 minutes via `curl` with `Authorization: Bearer ${{ secrets.CRON_SECRET }}`. This is the one actually keeping publish times close to on-schedule; it needs a `CRON_SECRET` repo secret (Settings → Secrets and variables → Actions) matching the `CRON_SECRET` env var already set in Vercel production — added manually since there's no CLI/API access to GitHub repo secrets from this environment. GitHub Actions schedules aren't perfectly precise either (GitHub can delay them under load), so treat "every ~10 min" as approximate, not exact.
+
+If an article ever appears stuck as `status: "scheduled"` past its `publish_date`, first check whether the GitHub Actions workflow is actually running (repo's Actions tab) before assuming the publish logic itself is broken — you can also trigger it manually with `workflow_dispatch`, or hit `/api/cron/publish-scheduled` directly with the `CRON_SECRET` bearer token.
+
+## Statistics (`pages/statistics/`, header dropdown)
+
+Two admin-only report pages reading from the **ATLAS Website's** database, not this app's own Supabase:
+- **Applicants** (`/statistics/applicants`) — public "Join The Network" requests submitted on atlasnetwork.club (`MembershipRequest` table).
+- **New Member Survey** (`/statistics/survey`) — the 3-question "Your Thoughts" answers from the Website's post-signup onboarding flow (`OnboardingResponse` table, joined to `User`), filtered to the last 90 days.
+
+Both go through `utils/websiteDb.ts`, a read-only `pg` `Pool` against `WEBSITE_DATABASE_URL` — the **same Neon connection string** as the ATLAS Website project's `DATABASE_URL`, kept as a separate env var here (set in both `.env.local` and Vercel production/preview) since these are two independent Vercel projects. Never write through this connection — if either dataset ever needs a write path from this app, add a real API route on the Website instead of writing directly to its DB from here. The Website itself has no UI for either dataset anymore (no `/results` page there) — this is the only place they're viewed.
 
 ## Git Conventions
 
