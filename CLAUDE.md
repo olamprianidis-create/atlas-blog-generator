@@ -1,7 +1,7 @@
-# CLAUDE.md - ATLAS Blog Generator
+# CLAUDE.md - Stat.ATLAS
 
 ## Project Overview
-ATLAS Blog Generator is an automated content creation tool that generates SEO-optimized blog articles for atlasnetwork.club. It optimizes for ChatGPT Search, Claude Search, and Google AI Overviews simultaneously using the blog template framework (Blog_Structure_Prompt_UPDATED.md).
+Stat.ATLAS (formerly "ATLAS Blog Generator" — renamed 2026-08-25 as the tool grew beyond just blog articles into general content operations) is an automated content creation and publishing tool for atlasnetwork.club. Its blog pipeline generates SEO-optimized articles, optimizing for ChatGPT Search, Claude Search, and Google AI Overviews simultaneously using the blog template framework (Blog_Structure_Prompt_UPDATED.md). It also handles cross-posting video content to TikTok and YouTube (see "Uploads" below).
 
 **Core Workflow:**
 1. Generate Outline + Keywords (with live web search)
@@ -201,7 +201,22 @@ Always reference this template when generating outlines and articles.
 
 If an article ever appears stuck as `status: "scheduled"` past its `publish_date`, first check whether the GitHub Actions workflow is actually running (repo's Actions tab) before assuming the publish logic itself is broken — you can also trigger it manually with `workflow_dispatch`, or hit `/api/cron/publish-scheduled` directly with the `CRON_SECRET` bearer token.
 
-## Statistics (`pages/statistics/`, header dropdown)
+## Layout (`components/layout/AppLayout.tsx`, `SidebarNav.tsx`)
+
+Every page renders `<AppLayout>` (not a per-page header) — a fixed-width black left sidebar (`SidebarNav.tsx`, brand + grouped nav links, amber-400 active pill) plus the page's own scrollable content area. Renamed from a top horizontal `Header.tsx` + dropdown menus (removed 2026-08-25) to this left-nav layout. `AppLayout`'s `contentClassName` prop defaults to a single-column content wrapper; the one exception is `pages/index.tsx`, which passes `"flex flex-1 overflow-hidden"` so its own wizard-progress `Sidebar.tsx` (step 1-5 tracker, unrelated to `SidebarNav.tsx` — don't confuse the two) can sit beside its `<main>`. Adding a new top-level page means adding it to the relevant group array in `SidebarNav.tsx`.
+
+## Uploads (`pages/uploads.tsx`, `utils/youtube.ts`, `utils/tiktok.ts`)
+
+Cross-posts a single video to YouTube and/or TikTok from one form — video file, thumbnail, title/description/tags, then per-platform options (YouTube: privacy/category/made-for-kids; TikTok: privacy/comments/duet/stitch/cover-frame-timestamp). Backed by two new Supabase tables (`supabase/migrations/0007_uploads.sql` — **run this migration manually in the Supabase SQL editor**, there's no CLI/DB-URL access to apply it from this environment): `platform_connections` (one row per platform's OAuth tokens) and `video_uploads` (one row per submitted video, independent `youtube_status`/`tiktok_status` so one platform failing doesn't block or hide the other's result).
+
+- **Video upload bypasses our server entirely** — `pages/uploads.tsx` uses `@vercel/blob/client`'s `upload()` directly from the browser to Blob storage (`pages/api/upload-video.ts` only hands out a short-lived client token via `handleUpload`). Routing large video files through a normal API route would hit Vercel's serverless request-body limit; this is the same reason `pages/api/upload-image.ts` (thumbnails, small images) can stay on the simpler raw-body pattern and this can't.
+- **Neither platform is connected yet** — both need real developer-portal setup before publishing will work (the "Connect" buttons on the Uploads page will error until then):
+  - **YouTube**: create a Google Cloud project, enable "YouTube Data API v3", create an OAuth 2.0 Web client, add `${SITE_URL}/api/auth/youtube/callback` as a redirect URI, set `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`/`SITE_URL` in `.env.local` and Vercel. While the OAuth consent screen is in "Testing" mode, only test users you add can authorize, and their tokens need re-consent every 7 days — publish the app (or add the ATLAS account as a test user) accordingly.
+  - **TikTok**: create an app in the TikTok for Developers portal, add the "Content Posting API" product, add `${SITE_URL}/api/auth/tiktok/callback` as a redirect URI, **verify `SITE_URL`'s domain** (required for `PULL_FROM_URL` video publishing — the method used here, since the video already has a public Blob URL and doesn't need a second chunked upload), set `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET`. Public "Direct Post" additionally requires TikTok's app audit approval — until that's granted, publishing only works for the developer's own sandboxed TikTok account.
+- **Scheduling is stored but not automated** — picking "Schedule for later" saves `publish_at` on the row (status `pending`) but nothing currently polls it and flips it to publishing, unlike the blog article pipeline's cron (see "Scheduled publishing" below). Publish those manually when the time comes, or wire up a cron similar to `publish-scheduled.ts` if this becomes a regular need.
+- **`utils/youtube.ts`/`utils/tiktok.ts`** hold all API logic (OAuth, token refresh, publish calls) — same "don't call the API directly" convention as `utils/anthropic.ts`.
+
+## Statistics (`pages/statistics/`)
 
 Two admin-only report pages reading from the **ATLAS Website's** database, not this app's own Supabase:
 - **Applicants** (`/statistics/applicants`) — public "Join The Network" requests submitted on atlasnetwork.club (`MembershipRequest` table).

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Header from "../../components/layout/Header";
+import AppLayout from "../../components/layout/AppLayout";
 
 interface SurveyResponseItem {
   id: string;
@@ -39,8 +39,7 @@ export default function SurveyPage() {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <Header />
+    <AppLayout>
       <main className="flex-1 overflow-y-auto px-8 py-10">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-2xl font-semibold text-slate-900">New Member Survey</h1>
@@ -97,6 +96,6 @@ export default function SurveyPage() {
           )}
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 }

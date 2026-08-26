@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Header from "../components/layout/Header";
+import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES, STEPS } from "../utils/types";
 
 interface DraftListItem {
@@ -72,8 +72,7 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <Header />
+    <AppLayout>
       <main className="flex-1 overflow-y-auto px-8 py-10">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-2xl font-semibold text-slate-900">Drafts</h1>
@@ -130,6 +129,6 @@ export default function DraftsPage() {
           )}
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 }

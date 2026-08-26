@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Header from "../components/layout/Header";
+import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
 import { buildArticleUrl } from "../utils/site";
 
@@ -43,8 +43,7 @@ export default function PublishedPage() {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <Header />
+    <AppLayout>
       <main className="flex-1 overflow-y-auto px-8 py-10">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-2xl font-semibold text-slate-900">Published</h1>
@@ -86,6 +85,6 @@ export default function PublishedPage() {
           )}
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 }

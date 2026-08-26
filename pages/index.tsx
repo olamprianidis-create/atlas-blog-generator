@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import Header from "../components/layout/Header";
+import AppLayout from "../components/layout/AppLayout";
 import Sidebar from "../components/layout/Sidebar";
 import SaveDraftButton from "../components/layout/SaveDraftButton";
 import StepOneTopic from "../components/steps/StepOneTopic";
@@ -845,25 +845,22 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <Header />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          currentStep={currentStep}
-          maxStepReached={maxStepReached}
-          onSelectStep={setCurrentStep}
-          finalStepComplete={scheduleResult !== null}
-        />
-        <main className="flex-1 overflow-y-auto px-8 py-10">
-          <div className="mb-6 flex justify-end">
-            <SaveDraftButton
-              onSave={handleSaveDraft}
-              disabled={isLoadingDraft || (!selectedCategory && !prompt.trim())}
-            />
-          </div>
-          {renderMain()}
-        </main>
-      </div>
-    </div>
+    <AppLayout contentClassName="flex flex-1 overflow-hidden">
+      <Sidebar
+        currentStep={currentStep}
+        maxStepReached={maxStepReached}
+        onSelectStep={setCurrentStep}
+        finalStepComplete={scheduleResult !== null}
+      />
+      <main className="flex-1 overflow-y-auto px-8 py-10">
+        <div className="mb-6 flex justify-end">
+          <SaveDraftButton
+            onSave={handleSaveDraft}
+            disabled={isLoadingDraft || (!selectedCategory && !prompt.trim())}
+          />
+        </div>
+        {renderMain()}
+      </main>
+    </AppLayout>
   );
 }

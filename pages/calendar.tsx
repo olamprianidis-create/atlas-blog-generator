@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import Header from "../components/layout/Header";
+import AppLayout from "../components/layout/AppLayout";
 import CalendarDayModal, { CalendarEventItem, ScheduledArticleForDay } from "../components/CalendarDayModal";
 import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
@@ -174,12 +174,11 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
-      <Header />
+    <AppLayout>
       <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold text-slate-900">Calendar</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Content Calendar</h1>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -349,6 +348,6 @@ export default function CalendarPage() {
           onEventDeleted={(eventId) => setEvents((current) => current.filter((e) => e.id !== eventId))}
         />
       )}
-    </div>
+    </AppLayout>
   );
 }
