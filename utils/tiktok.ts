@@ -2,13 +2,16 @@ import { getServiceClient } from "./supabase";
 
 // Setup required in the TikTok for Developers portal before this works:
 // 1. Create an app, add the "Content Posting API" product.
-// 2. Add ${SITE_URL}/api/auth/tiktok/callback as a redirect URI.
-// 3. Verify the domain in SITE_URL (Content Posting API > "Direct Post" via
-//    PULL_FROM_URL requires this, or uploads will be rejected).
+// 2. Add ${APP_URL}/api/auth/tiktok/callback as a redirect URI.
+// 3. Verify the domain in APP_URL (Content Posting API > "Direct Post" via
+//    PULL_FROM_URL requires this, or uploads will be rejected). APP_URL is
+//    this app's own deployed URL (Stat.ATLAS), not the ATLAS Website's
+//    atlasnetwork.club (see utils/site.ts's SITE_URL — a different,
+//    unrelated constant with a similar-sounding name).
 // 4. "Direct Post" to a public account requires TikTok's app audit —
 //    until that's approved, tokens only work for the developer's own
 //    sandboxed TikTok account. Set TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET
-//    / SITE_URL in .env.local and Vercel.
+//    / APP_URL in .env.local and Vercel.
 const SCOPES = "video.publish,video.upload";
 const AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/";
 const TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
@@ -17,14 +20,14 @@ const PUBLISH_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init
 function requireEnv() {
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
   const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  const siteUrl = process.env.SITE_URL;
+  const appUrl = process.env.APP_URL;
 
-  if (!clientKey || !clientSecret || !siteUrl) {
+  if (!clientKey || !clientSecret || !appUrl) {
     throw new Error(
-      "TikTok isn't configured yet (missing TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET / SITE_URL)."
+      "TikTok isn't configured yet (missing TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET / APP_URL)."
     );
   }
-  return { clientKey, clientSecret, redirectUri: `${siteUrl}/api/auth/tiktok/callback` };
+  return { clientKey, clientSecret, redirectUri: `${appUrl}/api/auth/tiktok/callback` };
 }
 
 export function getTiktokAuthUrl(state: string): string {

@@ -4,25 +4,28 @@ import { getServiceClient } from "./supabase";
 // Setup required in Google Cloud Console before this works:
 // 1. Create a project, enable "YouTube Data API v3".
 // 2. Create an OAuth 2.0 Client ID (type: Web application).
-// 3. Add ${SITE_URL}/api/auth/youtube/callback as an authorized redirect URI.
-// 4. Set YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / SITE_URL in .env.local
-//    and Vercel. The app must also pass Google's OAuth verification (or stay
-//    in "Testing" mode with the ATLAS account added as a test user) before
+// 3. Add ${APP_URL}/api/auth/youtube/callback as an authorized redirect URI.
+// 4. Set YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / APP_URL in .env.local
+//    and Vercel. APP_URL is this app's own deployed URL (Stat.ATLAS), not
+//    the ATLAS Website's atlasnetwork.club (see utils/site.ts's SITE_URL,
+//    a different, unrelated constant — same-sounding name, different app).
+//    The app must also pass Google's OAuth verification (or stay in
+//    "Testing" mode with the ATLAS account added as a test user) before
 //    tokens issued to that account will keep working past 7 days.
 const SCOPES = ["https://www.googleapis.com/auth/youtube.upload"];
 
 function getOAuthClient() {
   const clientId = process.env.YOUTUBE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-  const siteUrl = process.env.SITE_URL;
+  const appUrl = process.env.APP_URL;
 
-  if (!clientId || !clientSecret || !siteUrl) {
+  if (!clientId || !clientSecret || !appUrl) {
     throw new Error(
-      "YouTube isn't configured yet (missing YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / SITE_URL)."
+      "YouTube isn't configured yet (missing YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / APP_URL)."
     );
   }
 
-  return new google.auth.OAuth2(clientId, clientSecret, `${siteUrl}/api/auth/youtube/callback`);
+  return new google.auth.OAuth2(clientId, clientSecret, `${appUrl}/api/auth/youtube/callback`);
 }
 
 export function getYoutubeAuthUrl(state: string): string {

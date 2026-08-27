@@ -7,6 +7,8 @@ interface PublishedArticleItem {
   category: string;
   publish_date: string | null;
   meta_description: string | null;
+  linkedin_status: string;
+  linkedin_error: string | null;
 }
 
 export default async function handler(
@@ -22,7 +24,7 @@ export default async function handler(
     const supabase = getServiceClient();
     const { data, error } = await supabase
       .from("scheduled_articles")
-      .select("id, title, category, publish_date, meta_description")
+      .select("id, title, category, publish_date, meta_description, linkedin_status, linkedin_error")
       .eq("status", "published")
       .order("publish_date", { ascending: false });
 
