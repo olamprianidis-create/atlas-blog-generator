@@ -7,6 +7,7 @@ interface PublishedArticleItem {
   category: string;
   publish_date: string | null;
   meta_description: string | null;
+  image_url: string | null;
   linkedin_status: string;
   linkedin_error: string | null;
 }
@@ -23,13 +24,14 @@ export default async function handler(
   try {
     const supabase = getServiceClient();
 
-    // linkedin_status/linkedin_error are optional columns (see
-    // supabase/migrations/0008_linkedin.sql) — degrade gracefully to
-    // listing published articles without them if that migration hasn't
-    // been run yet, instead of failing the whole page for every article.
+    // image_url/linkedin_status/linkedin_error are optional columns (see
+    // supabase/migrations/0004_header_image.sql and 0008_linkedin.sql) —
+    // degrade gracefully to listing published articles without them if
+    // those migrations haven't been run yet, instead of failing the whole
+    // page for every article.
     const { data, error } = await supabase
       .from("scheduled_articles")
-      .select("id, title, category, publish_date, meta_description, linkedin_status, linkedin_error")
+      .select("id, title, category, publish_date, meta_description, image_url, linkedin_status, linkedin_error")
       .eq("status", "published")
       .order("publish_date", { ascending: false });
 
@@ -38,7 +40,7 @@ export default async function handler(
     }
 
     console.warn(
-      "published-articles select with linkedin_status/linkedin_error failed, retrying without them (run supabase/migrations/0008_linkedin.sql):",
+      "published-articles select with image_url/linkedin_status/linkedin_error failed, retrying without them (run supabase/migrations/0004_header_image.sql and 0008_linkedin.sql):",
       error.message
     );
 
@@ -52,6 +54,7 @@ export default async function handler(
 
     const items: PublishedArticleItem[] = (fallbackData ?? []).map((row) => ({
       ...row,
+      image_url: null,
       linkedin_status: "not_posted",
       linkedin_error: null,
     }));

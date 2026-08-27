@@ -21,7 +21,10 @@ interface ScheduledArticleRow {
   title: string;
   publish_date: string | null;
   image_url: string | null;
+  status: "scheduled" | "published";
 }
+
+const PUBLISHED_BLOG_POST_COLOR_CLASS = "bg-green-700";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -82,10 +85,23 @@ export default function CalendarPage() {
   }, [viewYear, viewMonth]);
 
   useEffect(() => {
-    fetch("/api/scheduled-articles")
-      .then((res) => res.json())
-      .then((data: ScheduledArticleRow[]) => setScheduledArticles(data))
-      .catch((err) => console.error("Failed to load scheduled articles:", err));
+    // The calendar shows blog posts across their whole lifecycle — once a
+    // post actually publishes it used to disappear from here entirely,
+    // since /api/scheduled-articles only ever returns status="scheduled"
+    // rows (by design — that endpoint also backs the Scheduled page,
+    // which shouldn't show already-published articles). So the calendar
+    // merges that with /api/published-articles instead of widening the
+    // shared endpoint's filter.
+    Promise.all([
+      fetch("/api/scheduled-articles").then((res) => res.json()),
+      fetch("/api/published-articles").then((res) => res.json()),
+    ])
+      .then(([scheduled, published]: [ScheduledArticleRow[], ScheduledArticleRow[]]) => {
+        const scheduledRows = scheduled.map((row) => ({ ...row, status: "scheduled" as const }));
+        const publishedRows = published.map((row) => ({ ...row, status: "published" as const }));
+        setScheduledArticles([...scheduledRows, ...publishedRows]);
+      })
+      .catch((err) => console.error("Failed to load blog posts for calendar:", err));
   }, []);
 
   function goToPrevMonth() {
@@ -137,7 +153,9 @@ export default function CalendarPage() {
     const match = scheduledArticles.find(
       (article) => article.publish_date && article.publish_date.slice(0, 10) === dateStr
     );
-    return match ? { id: match.id, title: match.title, image_url: match.image_url } : null;
+    return match
+      ? { id: match.id, title: match.title, image_url: match.image_url, status: match.status }
+      : null;
   }
 
   function eventsForDate(dateStr: string) {
@@ -149,7 +167,11 @@ export default function CalendarPage() {
 
     const article = findArticleForDate(dateStr);
     if (article) {
-      chips.push({ key: `article-${article.id}`, label: article.title, colorClass: BLOG_POST_COLOR_CLASS });
+      chips.push({
+        key: `article-${article.id}`,
+        label: article.title,
+        colorClass: article.status === "published" ? PUBLISHED_BLOG_POST_COLOR_CLASS : BLOG_POST_COLOR_CLASS,
+      });
     }
 
     for (const event of eventsForDate(dateStr)) {
@@ -323,7 +345,11 @@ export default function CalendarPage() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded ${BLOG_POST_COLOR_CLASS}`} />
-              Blog post
+              Blog post (scheduled)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className={`h-3 w-3 rounded ${PUBLISHED_BLOG_POST_COLOR_CLASS}`} />
+              Blog post (published)
             </span>
             {PLATFORMS.map((platform) => (
               <span key={platform.value} className="flex items-center gap-1.5">

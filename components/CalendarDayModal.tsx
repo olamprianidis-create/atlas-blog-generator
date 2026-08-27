@@ -7,6 +7,7 @@ export interface ScheduledArticleForDay {
   id: string;
   title: string;
   image_url: string | null;
+  status: "scheduled" | "published";
 }
 
 export interface CalendarEventItem {
@@ -324,10 +325,14 @@ export default function CalendarDayModal({
                 {scheduledArticle.title}
               </p>
               <Link
-                href={`/?scheduledId=${scheduledArticle.id}`}
+                href={
+                  scheduledArticle.status === "published"
+                    ? `/published/${scheduledArticle.id}/stats`
+                    : `/?scheduledId=${scheduledArticle.id}`
+                }
                 className="shrink-0 whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
               >
-                View Scheduled Post
+                {scheduledArticle.status === "published" ? "View Statistics" : "View Scheduled Post"}
               </Link>
             </div>
           ) : (
