@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
 import { buildArticleUrl } from "../utils/site";
@@ -180,6 +181,13 @@ export default function PublishedPage() {
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+                    <Link
+                      href={`/published/${article.id}/stats`}
+                      className="text-xs font-medium text-slate-600 hover:underline"
+                    >
+                      Statistics
+                    </Link>
+                    <span className="text-slate-300">·</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${LINKEDIN_STATUS_STYLES[article.linkedin_status] ?? "bg-slate-100 text-slate-500"}`}
                     >

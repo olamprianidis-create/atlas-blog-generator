@@ -45,6 +45,17 @@ export default function StepOneTopic({
       </div>
 
       <div className="mt-6">
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          Reference Documents <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <p className="mb-2 text-xs text-slate-500">
+          Upload any reports, data, or notes you want this article to draw from — Claude reads
+          and interprets them as additional research, alongside the live web search findings.
+        </p>
+        <DocumentUpload documents={referenceDocuments} onChange={onReferenceDocumentsChange} />
+      </div>
+
+      <div className="mt-6">
         <label htmlFor="prompt" className="mb-2 block text-sm font-medium text-slate-700">
           Your prompt
         </label>
@@ -63,17 +74,6 @@ export default function StepOneTopic({
           Author <span className="font-normal text-slate-400">(optional)</span>
         </label>
         <AuthorPicker value={authorUserId} onChange={onAuthorChange} />
-      </div>
-
-      <div className="mt-6">
-        <label className="mb-2 block text-sm font-medium text-slate-700">
-          Reference Documents <span className="font-normal text-slate-400">(optional)</span>
-        </label>
-        <p className="mb-2 text-xs text-slate-500">
-          Upload any reports, data, or notes you want this article to draw from — Claude reads
-          and interprets them as additional research, alongside the live web search findings.
-        </p>
-        <DocumentUpload documents={referenceDocuments} onChange={onReferenceDocumentsChange} />
       </div>
 
       <div className="mt-6">

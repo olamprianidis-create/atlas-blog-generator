@@ -99,10 +99,31 @@ export default async function handler(
     if (editingArticleId) {
       // Re-scheduling an already-scheduled article (e.g. changing its
       // publish date from the Scheduled page) updates the existing row
-      // in place rather than creating a duplicate.
+      // in place rather than creating a duplicate. But this same wizard
+      // flow can also be reached for an article that has since been
+      // published (e.g. the admin goes back to Step 4/5 and re-saves
+      // after publishing, or the ~10-min publish cron fires while an
+      // edit is in progress) — in that case `articleRowBase.status` must
+      // NOT blindly overwrite it back to "scheduled", or the article
+      // silently vanishes from the Published page with no error shown.
+      const { data: existingRow, error: existingRowError } = await supabase
+        .from("scheduled_articles")
+        .select("status")
+        .eq("id", editingArticleId)
+        .single();
+
+      if (existingRowError || !existingRow) {
+        throw existingRowError ?? new Error("Could not find the article being edited");
+      }
+
+      const updatePayload =
+        existingRow.status === "published"
+          ? { ...articleRowBase, status: "published" as const }
+          : articleRowBase;
+
       let { data: updatedRow, error: updateError } = await supabase
         .from("scheduled_articles")
-        .update({ ...articleRowBase, image_url: imageUrlValue, author_user_id: authorUserIdValue })
+        .update({ ...updatePayload, image_url: imageUrlValue, author_user_id: authorUserIdValue })
         .eq("id", editingArticleId)
         .select("id")
         .single();
@@ -114,7 +135,7 @@ export default async function handler(
         );
         ({ data: updatedRow, error: updateError } = await supabase
           .from("scheduled_articles")
-          .update(articleRowBase)
+          .update(updatePayload)
           .eq("id", editingArticleId)
           .select("id")
           .single());

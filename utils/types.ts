@@ -4,7 +4,8 @@ export type Category =
   | "mental_health"
   | "community"
   | "friends"
-  | "sports";
+  | "sports"
+  | "finance";
 
 export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "entrepreneurship", label: "Entrepreneurship" },
@@ -13,6 +14,7 @@ export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "community", label: "Community" },
   { value: "friends", label: "Friends" },
   { value: "sports", label: "Sports" },
+  { value: "finance", label: "Finance" },
 ];
 
 export const STEPS = [
