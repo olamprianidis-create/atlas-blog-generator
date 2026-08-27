@@ -202,7 +202,16 @@ export default async function handler(
     return res.status(200).json({ articleId: articleRow.id as string, publishDate: publishDateIso });
   } catch (error) {
     console.error("schedule-article failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    // Supabase/PostgREST errors are plain objects with a `message` field,
+    // not real Error instances — `error instanceof Error` alone silently
+    // fell through to "Unknown error" for every DB-level failure (e.g. an
+    // invalid enum value), hiding the actual cause from the UI.
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "Unknown error";
     return res.status(502).json({ error: `Scheduling failed: ${message}` });
   }
 }
