@@ -53,6 +53,7 @@ interface DraftState {
   selectedCategory: Category | null;
   prompt: string;
   preliminaryKeywords: string;
+  authorUserId: string | null;
   headerImageUrl: string | null;
   referenceKeywords: string;
   keywordResearchResult: KeywordResearchResult | null;
@@ -111,6 +112,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [prompt, setPrompt] = useState("");
   const [preliminaryKeywords, setPreliminaryKeywords] = useState("");
+  const [authorUserId, setAuthorUserId] = useState<string | null>(null);
 
   // Step 2: image & keywords
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
@@ -340,6 +342,7 @@ export default function Home() {
     setSelectedCategory(null);
     setPrompt("");
     setPreliminaryKeywords("");
+    setAuthorUserId(null);
     setHeaderImageUrl(null);
     setIsUploadingImage(false);
     setImageUploadError(null);
@@ -383,6 +386,7 @@ export default function Home() {
       selectedCategory,
       prompt,
       preliminaryKeywords,
+      authorUserId,
       headerImageUrl,
       referenceKeywords,
       keywordResearchResult,
@@ -402,6 +406,7 @@ export default function Home() {
     setSelectedCategory(state.selectedCategory);
     setPrompt(state.prompt);
     setPreliminaryKeywords(state.preliminaryKeywords ?? "");
+    setAuthorUserId(state.authorUserId ?? null);
     setHeaderImageUrl(state.headerImageUrl);
     setReferenceKeywords(state.referenceKeywords);
     setKeywordResearchResult(state.keywordResearchResult);
@@ -515,6 +520,7 @@ export default function Home() {
           setSelectedCategory(data.category as Category);
           setKeywords(articleKeywords.map((text): KeywordItem => ({ text, isSuggested: false })));
           setHeaderImageUrl(data.image_url ?? null);
+          setAuthorUserId(data.author_user_id ?? null);
           setArticleData({
             title: data.title,
             markdown: data.content_markdown,
@@ -657,6 +663,7 @@ export default function Home() {
           outline,
           keywordResearch: keywordResearchResult,
           imageUrl: headerImageUrl,
+          authorUserId,
           articleId: editingArticleId,
         }),
       });
@@ -744,6 +751,8 @@ export default function Home() {
           onPromptChange={setPrompt}
           preliminaryKeywords={preliminaryKeywords}
           onPreliminaryKeywordsChange={setPreliminaryKeywords}
+          authorUserId={authorUserId}
+          onAuthorChange={setAuthorUserId}
           onNext={handleProceedToStep2}
         />
       );

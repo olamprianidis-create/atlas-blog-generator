@@ -1,5 +1,6 @@
 import { Category } from "../../utils/types";
 import TopicSelector from "./TopicSelector";
+import AuthorPicker from "./AuthorPicker";
 
 interface StepOneTopicProps {
   selectedCategory: Category | null;
@@ -8,6 +9,8 @@ interface StepOneTopicProps {
   onPromptChange: (value: string) => void;
   preliminaryKeywords: string;
   onPreliminaryKeywordsChange: (value: string) => void;
+  authorUserId: string | null;
+  onAuthorChange: (memberId: string | null) => void;
   onNext: () => void;
 }
 
@@ -18,6 +21,8 @@ export default function StepOneTopic({
   onPromptChange,
   preliminaryKeywords,
   onPreliminaryKeywordsChange,
+  authorUserId,
+  onAuthorChange,
   onNext,
 }: StepOneTopicProps) {
   const canContinue = prompt.trim().length > 0 || selectedCategory !== null;
@@ -46,6 +51,13 @@ export default function StepOneTopic({
           rows={6}
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+      </div>
+
+      <div className="mt-6">
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          Author <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <AuthorPicker value={authorUserId} onChange={onAuthorChange} />
       </div>
 
       <div className="mt-6">

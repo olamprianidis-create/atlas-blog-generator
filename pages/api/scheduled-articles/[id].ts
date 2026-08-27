@@ -11,6 +11,7 @@ interface ScheduledArticleDetail {
   category: string;
   publish_date: string | null;
   image_url: string | null;
+  author_user_id: string | null;
 }
 
 export default async function handler(
@@ -26,11 +27,28 @@ export default async function handler(
 
   if (req.method === "GET") {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("scheduled_articles")
-        .select("id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url")
+        .select(
+          "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, author_user_id"
+        )
         .eq("id", id)
         .single();
+
+      if (error) {
+        // author_user_id is an optional column (see
+        // supabase/migrations/0009_article_author.sql) — degrade
+        // gracefully if that migration hasn't been run yet.
+        console.warn(
+          "get scheduled article with author_user_id failed, retrying without it (run supabase/migrations/0009_article_author.sql):",
+          error.message
+        );
+        ({ data, error } = await supabase
+          .from("scheduled_articles")
+          .select("id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url")
+          .eq("id", id)
+          .single());
+      }
 
       if (error) throw error;
       if (!data) return res.status(404).json({ error: "Article not found" });

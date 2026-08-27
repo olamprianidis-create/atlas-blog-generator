@@ -64,3 +64,28 @@ export async function listOnboardingSurveyResponses(): Promise<OnboardingSurveyR
   );
   return rows;
 }
+
+export interface AtlasMemberOption {
+  id: string;
+  fullName: string;
+  profileImageUrl: string | null;
+}
+
+// Powers the Author picker on the blog generator's Step 1 — queried live,
+// not cached, so it's always exactly current (no scheduled sync job).
+// Excludes test accounts, same convention as the Website's own member
+// listing (see its src/lib/db.ts, listMembers()).
+export async function listAtlasMembersForAuthorPicker(): Promise<AtlasMemberOption[]> {
+  const { rows } = await getPool().query(
+    `SELECT u.id, u."firstName", u."lastName", p."profileImageUrl"
+     FROM "User" u
+     LEFT JOIN "Profile" p ON p."userId" = u.id
+     WHERE u."isTestAccount" = false
+     ORDER BY u."firstName" ASC, u."lastName" ASC`
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    fullName: `${row.firstName} ${row.lastName}`.trim(),
+    profileImageUrl: row.profileImageUrl,
+  }));
+}

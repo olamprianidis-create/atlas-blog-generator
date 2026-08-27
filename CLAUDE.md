@@ -120,6 +120,8 @@ npm run dev
 - external_links (jsonb array)
 - publish_date (timestamp)
 - status (enum: draft, scheduled, published)
+- image_url (text, nullable — see 0004_header_image.sql)
+- author_user_id (text, nullable — see 0009_article_author.sql and "Author picker" below)
 - created_at (timestamp)
 - updated_at (timestamp)
 ```
@@ -244,6 +246,15 @@ Two admin-only report pages reading from the **ATLAS Website's** database, not t
 - **New Member Survey** (`/statistics/survey`) — the 3-question "Your Thoughts" answers from the Website's post-signup onboarding flow (`OnboardingResponse` table, joined to `User`), filtered to the last 90 days.
 
 Both go through `utils/websiteDb.ts`, a read-only `pg` `Pool` against `WEBSITE_DATABASE_URL` — the **same Neon connection string** as the ATLAS Website project's `DATABASE_URL`, kept as a separate env var here (set in both `.env.local` and Vercel production/preview) since these are two independent Vercel projects. Never write through this connection — if either dataset ever needs a write path from this app, add a real API route on the Website instead of writing directly to its DB from here. The Website itself has no UI for either dataset anymore (no `/results` page there) — this is the only place they're viewed.
+
+## Author picker (Step 1, `components/steps/AuthorPicker.tsx`, `pages/api/authors.ts`)
+
+Step 1 has an optional "Author" field — a searchable dropdown of real ATLAS members, letting an admin credit a blog article to a specific member. Selecting one stores that member's **ATLAS Website `User.id`** as `scheduled_articles.author_user_id` (plain text, no real FK — different Postgres instance).
+
+- **Always queried live, on every dropdown open** — reuses the same read-only `WEBSITE_DATABASE_URL` connection as Statistics (`listAtlasMembersForAuthorPicker()` in `utils/websiteDb.ts`, `GET /api/authors`), so the member list is always exactly current with **zero scheduled sync job and zero extra env vars**. (An earlier plan was a cached snapshot refreshed every 2 weeks via a scheduled job, like the article-publish cron — deliberately not built, since live is simpler and more accurate for a dataset this small.)
+- **Threaded through the whole wizard like `headerImageUrl`** — `authorUserId` lives in `pages/index.tsx`'s state and `DraftState` (drafts need no migration, `state` is a jsonb blob), gets sent as `authorUserId` to `POST /api/schedule-article`, and is restored from `author_user_id` when editing an existing scheduled article (`GET /api/scheduled-articles/[id]`) — including if the admin navigates back to Step 1 mid-edit.
+- **`author_user_id` is an optional column** (`supabase/migrations/0009_article_author.sql`, not yet run as of 2026-08-27 — **run this migration manually in the Supabase SQL editor**, no CLI/DB-URL access to apply it from this environment). Both the insert and update paths in `schedule-article.ts`, and the read in `scheduled-articles/[id].ts`, degrade gracefully (retry without the column) if it's missing — same convention as `image_url`.
+- **The actual Author display box lives on the ATLAS Website**, not here — `src/app/article/[slug]/page.tsx` there resolves `author_user_id` against its own `User`/`Profile` tables at render time (`getArticleAuthor()` in its `src/lib/db.ts`) rather than storing a denormalized name/photo copy, so the displayed name/photo/join-date is always current even if the member edits their profile later. Shows photo, full name, "Member Since" (date + day count), and a black pill "View Profile" button linking to `/members/{slug}` — which itself respects that member's PRIVATE/PUBLIC visibility setting (see the Website's own CLAUDE.md), so the button redirects a logged-out reader to login for a Private author.
 
 ## Git Conventions
 

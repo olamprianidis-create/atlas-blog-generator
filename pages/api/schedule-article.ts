@@ -16,6 +16,7 @@ interface ScheduleArticleRequestBody {
   outline?: unknown;
   keywordResearch?: unknown;
   imageUrl?: unknown;
+  authorUserId?: unknown;
   articleId?: unknown;
 }
 
@@ -49,6 +50,7 @@ export default async function handler(
     outline,
     keywordResearch,
     imageUrl,
+    authorUserId,
     articleId,
   } = req.body as ScheduleArticleRequestBody;
 
@@ -91,6 +93,7 @@ export default async function handler(
       status: "scheduled",
     };
     const imageUrlValue = typeof imageUrl === "string" && imageUrl ? imageUrl : null;
+    const authorUserIdValue = typeof authorUserId === "string" && authorUserId ? authorUserId : null;
     const editingArticleId = typeof articleId === "string" && articleId ? articleId : null;
 
     if (editingArticleId) {
@@ -99,14 +102,14 @@ export default async function handler(
       // in place rather than creating a duplicate.
       let { data: updatedRow, error: updateError } = await supabase
         .from("scheduled_articles")
-        .update({ ...articleRowBase, image_url: imageUrlValue })
+        .update({ ...articleRowBase, image_url: imageUrlValue, author_user_id: authorUserIdValue })
         .eq("id", editingArticleId)
         .select("id")
         .single();
 
       if (updateError) {
         console.warn(
-          "scheduled_articles update with image_url failed, retrying without it (run supabase/migrations/0004_header_image.sql):",
+          "scheduled_articles update with image_url/author_user_id failed, retrying without them (run supabase/migrations/0004_header_image.sql and 0009_article_author.sql):",
           updateError.message
         );
         ({ data: updatedRow, error: updateError } = await supabase
@@ -124,18 +127,19 @@ export default async function handler(
       return res.status(200).json({ articleId: updatedRow.id as string, publishDate: publishDateIso });
     }
 
-    // image_url is an optional column (see
-    // supabase/migrations/0004_header_image.sql) — degrade gracefully to
-    // scheduling without it if that migration hasn't been run yet.
+    // image_url/author_user_id are optional columns (see
+    // supabase/migrations/0004_header_image.sql and 0009_article_author.sql)
+    // — degrade gracefully to scheduling without them if those migrations
+    // haven't been run yet.
     let { data: articleRow, error: articleError } = await supabase
       .from("scheduled_articles")
-      .insert({ ...articleRowBase, image_url: imageUrlValue })
+      .insert({ ...articleRowBase, image_url: imageUrlValue, author_user_id: authorUserIdValue })
       .select("id")
       .single();
 
     if (articleError) {
       console.warn(
-        "scheduled_articles insert with image_url failed, retrying without it (run supabase/migrations/0004_header_image.sql):",
+        "scheduled_articles insert with image_url/author_user_id failed, retrying without them (run supabase/migrations/0004_header_image.sql and 0009_article_author.sql):",
         articleError.message
       );
       ({ data: articleRow, error: articleError } = await supabase
