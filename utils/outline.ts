@@ -87,7 +87,7 @@ Respond with ONLY valid JSON in this exact shape, no markdown fences, no comment
 {"outline": {"hook": "...", "quickAnswer": "...", "topicBreakdown": ["..."], "example": "...", "faqs": [{"question": "...", "answer": "..."}], "takeaways": ["..."], "cta": "..."}}`;
 
   return generateJSON<OutlineGenerationResult>(prompt, mockValue, {
-    maxTokens: 2048,
+    maxTokens: 4096,
     temperature: 0.7,
   });
 }
