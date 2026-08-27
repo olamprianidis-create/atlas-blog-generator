@@ -138,7 +138,7 @@ Respond with ONLY valid JSON in this exact shape, no markdown fences, no comment
 
   const analyzed = await generateJSON<
     Omit<KeywordResearchResult, "queriesRun">
-  >(prompt, mockValue, { maxTokens: 4096 });
+  >(prompt, mockValue, { maxTokens: 8192 });
 
   return {
     queriesRun: queries.map((q) => q.query),

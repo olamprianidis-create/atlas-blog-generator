@@ -176,6 +176,7 @@ Always reference this template when generating outlines and articles.
 ## Common Gotchas
 
 1. **Don't call Anthropic API directly** - Use `/utils/anthropic.ts` wrapper (handles retry logic)
+1a. **"Anthropic response was truncated (hit max_tokens=...)" is not a credits/billing issue** — it means a call's `maxTokens` option was too low for how long that response actually needed to be, so `anthropic.ts` deliberately throws instead of silently returning cut-off JSON/text (see its `truncated` check). If this shows up on a step that previously worked fine, the fix is raising that call's `maxTokens` (e.g. `utils/keywordResearch.ts`'s call, bumped 4096→8192 on 2026-08-27 after this exact error), not checking account balance.
 2. **Scheduled-article publishing is checked every ~10 minutes, not continuously** — see "Scheduled publishing" below. It is NOT instant at the exact publish time.
 3. **Article template changes** - Keep Blog_Structure_Prompt_UPDATED.md in sync with generation logic
 4. **Web search can fail** - Have graceful fallback to previous research data
