@@ -1,6 +1,7 @@
 import { Category } from "../../utils/types";
 import TopicSelector from "./TopicSelector";
 import AuthorPicker from "./AuthorPicker";
+import DocumentUpload, { UploadedDocument } from "./DocumentUpload";
 
 interface StepOneTopicProps {
   selectedCategory: Category | null;
@@ -11,6 +12,8 @@ interface StepOneTopicProps {
   onPreliminaryKeywordsChange: (value: string) => void;
   authorUserId: string | null;
   onAuthorChange: (memberId: string | null) => void;
+  referenceDocuments: UploadedDocument[];
+  onReferenceDocumentsChange: (documents: UploadedDocument[]) => void;
   onNext: () => void;
 }
 
@@ -23,6 +26,8 @@ export default function StepOneTopic({
   onPreliminaryKeywordsChange,
   authorUserId,
   onAuthorChange,
+  referenceDocuments,
+  onReferenceDocumentsChange,
   onNext,
 }: StepOneTopicProps) {
   const canContinue = prompt.trim().length > 0 || selectedCategory !== null;
@@ -58,6 +63,17 @@ export default function StepOneTopic({
           Author <span className="font-normal text-slate-400">(optional)</span>
         </label>
         <AuthorPicker value={authorUserId} onChange={onAuthorChange} />
+      </div>
+
+      <div className="mt-6">
+        <label className="mb-2 block text-sm font-medium text-slate-700">
+          Reference Documents <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <p className="mb-2 text-xs text-slate-500">
+          Upload any reports, data, or notes you want this article to draw from — Claude reads
+          and interprets them as additional research, alongside the live web search findings.
+        </p>
+        <DocumentUpload documents={referenceDocuments} onChange={onReferenceDocumentsChange} />
       </div>
 
       <div className="mt-6">

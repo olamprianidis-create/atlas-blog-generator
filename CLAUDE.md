@@ -199,6 +199,20 @@ Net effect: a single article generation now fires 4 web searches instead of 8 (a
 
 ---
 
+## Reference documents (Step 1, `components/steps/DocumentUpload.tsx`, `utils/documentExtraction.ts`, `utils/referenceDocuments.ts`)
+
+Step 1 has an optional "Reference Documents" upload — one or more PDF, Word (`.docx`), plain text/Markdown, or CSV files the admin wants an article to draw from (a report, raw data, internal notes, etc.), on top of the live web search findings.
+
+- **Upload flow**: browser uploads straight to Vercel Blob via `@vercel/blob/client`'s `upload()` (`pages/api/upload-document.ts` only hands out a client token, same pattern as video uploads), then the client immediately calls `POST /api/extract-document` with the resulting blob URL — that route fetches the file server-side and extracts plain text with `utils/documentExtraction.ts` (`pdf-parse` for PDFs, `mammoth` for `.docx`, a raw read for `.txt`/`.md`/`.csv`). The extracted text (capped at 20,000 characters per document) is what actually gets kept in wizard state — `components/steps/DocumentUpload.tsx`'s `UploadedDocument[]` is `{name, extractedText, charCount}`, threaded through `pages/index.tsx` exactly like `authorUserId`/`headerImageUrl` (state → `DraftState`'s jsonb blob → `buildDraftState`/`applyDraftState`/`handleRestart`). **No new Supabase migration or env var was needed** — `BLOB_READ_WRITE_TOKEN` already existed from the Uploads feature, and documents only need to survive the in-progress wizard/draft, not the published article record.
+- **How the model uses it**: `utils/referenceDocuments.ts`'s `documentsToResearchQueries()` reshapes each uploaded document into the same `ResearchQuery` shape (`{query, findings}`) as a web search result — `pages/api/generate-outline.ts` and `pages/api/generate-article.ts` both merge document-derived entries onto the existing `research` array before calling `generateOutline()`/`generateArticle()`, so uploaded documents read as additional research context the model weaves in naturally, no separate prompt section needed. Documents are **not** fed into keyword research (`researchKeywords()`) — that step's source classification (`people_also_ask`/`related_searches`/etc.) doesn't fit arbitrary document content well, and the ask was specifically "add within the article," not mine documents for SEO keywords.
+- **Regeneration tracking**: `pages/index.tsx`'s outline/article "did the inputs change since last generation" signatures include a `documentKeys` fingerprint (`name:charCount` per document) — so adding/removing a reference document after already generating an outline correctly triggers a regeneration instead of silently being ignored.
+
+## Collapsible sidebar (`components/layout/SidebarNav.tsx`)
+
+The left sidebar can collapse to an icon-only rail (`w-[4.5rem]`) via a button at its bottom, down from its normal `w-60` — nav labels, the "Stat.ATLAS" wordmark, and section headings (replaced by a thin divider) hide, and each icon gets a `title` tooltip. Collapsed/expanded state is persisted to `localStorage` (`statAtlasSidebarCollapsed`), not React state alone — this is the Pages Router, so every page mounts its own fresh `<AppLayout>`/`<SidebarNav>` on navigation (no shared persistent layout), and state would otherwise reset on every page change.
+
+---
+
 ## Workflow Notes
 
 - **Generate step:** Uses live web search for fresh data + keyword spreadsheet

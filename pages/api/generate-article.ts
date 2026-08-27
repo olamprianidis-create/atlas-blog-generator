@@ -8,6 +8,7 @@ import type { BlogOutline } from "../../utils/outline";
 import type { ResearchQuery } from "../../utils/webSearch";
 import { Category, CATEGORIES } from "../../utils/types";
 import type { RelatedArticleItem } from "../../utils/relatedArticles";
+import { documentsToResearchQueries, isReferenceDocumentList } from "../../utils/referenceDocuments";
 
 interface GenerateArticleRequestBody {
   category?: unknown;
@@ -15,6 +16,7 @@ interface GenerateArticleRequestBody {
   outline?: unknown;
   keywords?: unknown;
   research?: unknown;
+  documents?: unknown;
   relatedArticles?: unknown;
   editInstructions?: unknown;
 }
@@ -71,7 +73,7 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, topic, outline, keywords, research, relatedArticles, editInstructions } =
+  const { category, topic, outline, keywords, research, documents, relatedArticles, editInstructions } =
     req.body as GenerateArticleRequestBody;
 
   if (!isOutline(outline)) {
@@ -82,12 +84,19 @@ export default async function handler(
     return res.status(400).json({ error: "Missing or invalid keywords" });
   }
 
+  if (documents !== undefined && !isReferenceDocumentList(documents)) {
+    return res.status(400).json({ error: "Invalid documents" });
+  }
+
   const selectedCategory = isCategory(category) ? category : null;
   const categoryLabel = selectedCategory
     ? CATEGORIES.find((c) => c.value === selectedCategory)!.label
     : "General";
   const topicText = typeof topic === "string" && topic.trim() ? topic.trim() : categoryLabel;
-  const researchList: ResearchQuery[] = Array.isArray(research) ? (research as ResearchQuery[]) : [];
+  const researchList: ResearchQuery[] = [
+    ...(Array.isArray(research) ? (research as ResearchQuery[]) : []),
+    ...documentsToResearchQueries(isReferenceDocumentList(documents) ? documents : []),
+  ];
   const relatedArticlesList: RelatedArticleItem[] = isRelatedArticleList(relatedArticles) ? relatedArticles : [];
   const editInstructionsText =
     typeof editInstructions === "string" && editInstructions.trim() ? editInstructions.trim() : undefined;

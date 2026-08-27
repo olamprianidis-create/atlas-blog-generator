@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 interface NavItem {
   href: string;
@@ -80,6 +80,24 @@ const ICONS = {
       strokeLinejoin="round"
     />
   ),
+  collapse: iconWrapper(
+    <path
+      d="M9 5l-7 7 7 7 M20 5l-7 7 7 7"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  expand: iconWrapper(
+    <path
+      d="M15 5l7 7-7 7 M4 5l7 7-7 7"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
 };
 
 const CONTENT_ITEMS: NavItem[] = [
@@ -99,23 +117,27 @@ const STATISTICS_ITEMS: NavItem[] = [
   { href: "/statistics/survey", label: "New Member Survey", icon: ICONS.statistics },
 ];
 
-function NavLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
+const COLLAPSED_STORAGE_KEY = "statAtlasSidebarCollapsed";
+
+function NavLink({ item, isActive, collapsed }: { item: NavItem; isActive: boolean; collapsed: boolean }) {
   return (
     <Link
       href={item.href}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-        isActive
-          ? "bg-amber-400 text-slate-900"
-          : "text-slate-300 hover:bg-slate-800 hover:text-white"
-      }`}
+      title={collapsed ? item.label : undefined}
+      className={`flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+        collapsed ? "justify-center" : "gap-3"
+      } ${isActive ? "bg-amber-400 text-slate-900" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}
     >
       {item.icon}
-      <span className="truncate">{item.label}</span>
+      {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   );
 }
 
-function SectionLabel({ children }: { children: ReactNode }) {
+function SectionLabel({ children, collapsed }: { children: ReactNode; collapsed: boolean }) {
+  if (collapsed) {
+    return <div className="mx-3 mb-1 mt-5 border-t border-slate-800 first:mt-0" />;
+  }
   return (
     <p className="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 first:mt-0">
       {children}
@@ -125,50 +147,90 @@ function SectionLabel({ children }: { children: ReactNode }) {
 
 export default function SidebarNav() {
   const router = useRouter();
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Every page mounts its own <AppLayout>/<SidebarNav> (Pages Router, no
+  // shared persistent layout), so React state alone wouldn't survive
+  // navigating between pages — collapsed/expanded is persisted here
+  // instead, read on mount so it stays consistent across the app.
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true");
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col bg-slate-950 px-3 py-6">
-      <Link href="/" className="mb-6 flex items-center gap-2 px-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-400 text-sm font-black text-slate-900">
+    <aside
+      className={`flex h-full shrink-0 flex-col bg-slate-950 py-6 transition-[width] duration-200 ${
+        collapsed ? "w-[4.5rem] px-2" : "w-60 px-3"
+      }`}
+    >
+      <Link
+        href="/"
+        title={collapsed ? "Stat.ATLAS" : undefined}
+        className={`mb-6 flex items-center gap-2 px-3 ${collapsed ? "justify-center px-0" : ""}`}
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-400 text-sm font-black text-slate-900">
           S
         </span>
-        <span className="text-base font-semibold text-white">Stat.ATLAS</span>
+        {!collapsed && <span className="text-base font-semibold text-white">Stat.ATLAS</span>}
       </Link>
 
-      <nav className="flex-1 overflow-y-auto">
-        <SectionLabel>Content</SectionLabel>
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden">
+        <SectionLabel collapsed={collapsed}>Content</SectionLabel>
         <div className="flex flex-col gap-1">
           {CONTENT_ITEMS.map((item) => (
             <NavLink
               key={item.href}
               item={item}
               isActive={router.pathname === item.href}
+              collapsed={collapsed}
             />
           ))}
         </div>
 
-        <SectionLabel>Publishing</SectionLabel>
+        <SectionLabel collapsed={collapsed}>Publishing</SectionLabel>
         <div className="flex flex-col gap-1">
           {STANDALONE_ITEMS.map((item) => (
             <NavLink
               key={item.href}
               item={item}
               isActive={router.pathname === item.href}
+              collapsed={collapsed}
             />
           ))}
         </div>
 
-        <SectionLabel>Statistics</SectionLabel>
+        <SectionLabel collapsed={collapsed}>Statistics</SectionLabel>
         <div className="flex flex-col gap-1">
           {STATISTICS_ITEMS.map((item) => (
             <NavLink
               key={item.href}
               item={item}
               isActive={router.pathname === item.href}
+              collapsed={collapsed}
             />
           ))}
         </div>
       </nav>
+
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={`mt-3 flex items-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white ${
+          collapsed ? "justify-center" : "gap-3"
+        }`}
+      >
+        {collapsed ? ICONS.expand : ICONS.collapse}
+        {!collapsed && <span>Collapse</span>}
+      </button>
     </aside>
   );
 }

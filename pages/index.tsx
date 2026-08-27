@@ -4,6 +4,7 @@ import AppLayout from "../components/layout/AppLayout";
 import Sidebar from "../components/layout/Sidebar";
 import SaveDraftButton from "../components/layout/SaveDraftButton";
 import StepOneTopic from "../components/steps/StepOneTopic";
+import type { UploadedDocument } from "../components/steps/DocumentUpload";
 import StepTwoImageKeywords, { KeywordItem } from "../components/steps/StepTwoImageKeywords";
 import StepThreeOutline from "../components/steps/StepThreeOutline";
 import StepFourArticle from "../components/steps/StepFourArticle";
@@ -54,6 +55,7 @@ interface DraftState {
   prompt: string;
   preliminaryKeywords: string;
   authorUserId: string | null;
+  referenceDocuments: UploadedDocument[];
   headerImageUrl: string | null;
   referenceKeywords: string;
   keywordResearchResult: KeywordResearchResult | null;
@@ -79,6 +81,7 @@ interface OutlineSignatureInput {
   selectedCategory: Category | null;
   extractedTopic: string;
   keywordTexts: string[];
+  documentKeys: string[];
 }
 
 interface ArticleSignatureInput {
@@ -86,6 +89,14 @@ interface ArticleSignatureInput {
   topic: string;
   outline: BlogOutline;
   keywordTexts: string[];
+  documentKeys: string[];
+}
+
+// A cheap stand-in for "did the uploaded documents change" — name +
+// extracted length is enough to detect an add/remove/replace without
+// embedding the full extracted text (already large) into every signature.
+function documentKeysFor(documents: UploadedDocument[]): string[] {
+  return documents.map((d) => `${d.name}:${d.charCount}`);
 }
 
 function computeResearchSignature(input: ResearchSignatureInput): string {
@@ -113,6 +124,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [preliminaryKeywords, setPreliminaryKeywords] = useState("");
   const [authorUserId, setAuthorUserId] = useState<string | null>(null);
+  const [referenceDocuments, setReferenceDocuments] = useState<UploadedDocument[]>([]);
 
   // Step 2: image & keywords
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
@@ -294,6 +306,7 @@ export default function Home() {
       selectedCategory,
       extractedTopic,
       keywordTexts: keywords.map((k) => k.text),
+      documentKeys: documentKeysFor(referenceDocuments),
     });
     if (outline && signature === lastOutlineSignature) {
       // Nothing changed since the last time this outline was generated —
@@ -314,6 +327,7 @@ export default function Home() {
           extractedTopic,
           keywords: keywords.map((k) => k.text),
           research: researchQueries,
+          documents: referenceDocuments,
         }),
       });
 
@@ -343,6 +357,7 @@ export default function Home() {
     setPrompt("");
     setPreliminaryKeywords("");
     setAuthorUserId(null);
+    setReferenceDocuments([]);
     setHeaderImageUrl(null);
     setIsUploadingImage(false);
     setImageUploadError(null);
@@ -387,6 +402,7 @@ export default function Home() {
       prompt,
       preliminaryKeywords,
       authorUserId,
+      referenceDocuments,
       headerImageUrl,
       referenceKeywords,
       keywordResearchResult,
@@ -407,6 +423,7 @@ export default function Home() {
     setPrompt(state.prompt);
     setPreliminaryKeywords(state.preliminaryKeywords ?? "");
     setAuthorUserId(state.authorUserId ?? null);
+    setReferenceDocuments(state.referenceDocuments ?? []);
     setHeaderImageUrl(state.headerImageUrl);
     setReferenceKeywords(state.referenceKeywords);
     setKeywordResearchResult(state.keywordResearchResult);
@@ -433,12 +450,14 @@ export default function Home() {
         })
       );
     }
+    const documentKeys = documentKeysFor(state.referenceDocuments ?? []);
     if (state.outline) {
       setLastOutlineSignature(
         computeOutlineSignature({
           selectedCategory: state.selectedCategory,
           extractedTopic: state.extractedTopic,
           keywordTexts: state.keywords.map((k) => k.text),
+          documentKeys,
         })
       );
     }
@@ -449,6 +468,7 @@ export default function Home() {
           topic: state.extractedTopic || state.prompt,
           outline: state.outline,
           keywordTexts: state.keywords.map((k) => k.text),
+          documentKeys,
         })
       );
     }
@@ -567,6 +587,7 @@ export default function Home() {
           outline: outlineArg,
           keywords: keywords.map((k) => k.text),
           research: researchQueries,
+          documents: referenceDocuments,
           relatedArticles,
           editInstructions,
         }),
@@ -588,6 +609,7 @@ export default function Home() {
           topic: extractedTopic || prompt,
           outline: outlineArg,
           keywordTexts: keywords.map((k) => k.text),
+          documentKeys: documentKeysFor(referenceDocuments),
         })
       );
     } catch (error) {
@@ -607,6 +629,7 @@ export default function Home() {
       topic: extractedTopic || prompt,
       outline: parsed,
       keywordTexts: keywords.map((k) => k.text),
+      documentKeys: documentKeysFor(referenceDocuments),
     });
     if (articleData && signature === lastArticleSignature) {
       // Outline is unchanged since the last generated article — just
@@ -753,6 +776,8 @@ export default function Home() {
           onPreliminaryKeywordsChange={setPreliminaryKeywords}
           authorUserId={authorUserId}
           onAuthorChange={setAuthorUserId}
+          referenceDocuments={referenceDocuments}
+          onReferenceDocumentsChange={setReferenceDocuments}
           onNext={handleProceedToStep2}
         />
       );

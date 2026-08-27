@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { generateOutline, BlogOutline } from "../../utils/outline";
 import { ResearchQuery } from "../../utils/webSearch";
 import { Category, CATEGORIES } from "../../utils/types";
+import { documentsToResearchQueries, isReferenceDocumentList } from "../../utils/referenceDocuments";
 
 interface GenerateOutlineResponse {
   outline: BlogOutline;
@@ -36,12 +37,13 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt, extractedTopic, keywords, research } = req.body as {
+  const { category, prompt, extractedTopic, keywords, research, documents } = req.body as {
     category?: unknown;
     prompt?: unknown;
     extractedTopic?: unknown;
     keywords?: unknown;
     research?: unknown;
+    documents?: unknown;
   };
 
   if (category !== null && category !== undefined && !isCategory(category)) {
@@ -52,6 +54,9 @@ export default async function handler(
   }
   if (research !== undefined && !isResearchList(research)) {
     return res.status(400).json({ error: "Invalid research" });
+  }
+  if (documents !== undefined && !isReferenceDocumentList(documents)) {
+    return res.status(400).json({ error: "Invalid documents" });
   }
 
   const selectedCategory = isCategory(category) ? category : null;
@@ -67,11 +72,16 @@ export default async function handler(
       : "General";
     const topic = promptText || (typeof extractedTopic === "string" ? extractedTopic : "") || categoryLabel;
 
+    const combinedResearch: ResearchQuery[] = [
+      ...(isResearchList(research) ? research : []),
+      ...documentsToResearchQueries(isReferenceDocumentList(documents) ? documents : []),
+    ];
+
     const { outline } = await generateOutline({
       categoryLabel,
       topic,
       keywords,
-      research: isResearchList(research) ? research : [],
+      research: combinedResearch,
     });
 
     return res.status(200).json({ outline });
