@@ -58,14 +58,17 @@ export default async function handler(
     const extractedTopic = promptText ? await extractTopicPhrase(promptText) : categoryLabel;
     const searchTopic = extractedTopic || promptText || categoryLabel;
 
-    const [research, keywordResearch] = await Promise.all([
-      runResearch(categoryLabel, extractedTopic),
-      researchKeywords(
-        searchTopic,
-        typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined,
-        typeof preliminaryKeywords === "string" ? preliminaryKeywords : undefined
-      ),
-    ]);
+    // Single shared web-search batch (4 queries) feeds both the general
+    // research findings and the keyword-research analysis below — these
+    // used to each run their own separate 4-query batch (8 searches
+    // total per generation) covering largely overlapping ground.
+    const research = await runResearch(categoryLabel, extractedTopic);
+    const keywordResearch = await researchKeywords(
+      searchTopic,
+      research,
+      typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined,
+      typeof preliminaryKeywords === "string" ? preliminaryKeywords : undefined
+    );
 
     return res.status(200).json({ research, keywordResearch, extractedTopic });
   } catch (error) {

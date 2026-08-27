@@ -291,11 +291,16 @@ export async function generateArticle(input: ArticleGenerationInput): Promise<Ar
     ? `\n\nThe user requested these edits to a previous draft — apply them:\n${input.editInstructions}`
     : "";
 
-  const prompt = `You are writing a full blog article for atlasnetwork.club. Follow this template exactly:
+  // The instruction + template is identical on every single call (it
+  // doesn't depend on this article's topic/outline/research at all) —
+  // sent as its own cached content block so repeat calls within the
+  // ~5-minute cache window (retries, back-to-back generations) aren't
+  // billed full price for these ~1,500 tokens each time.
+  const cachedContext = `You are writing a full blog article for atlasnetwork.club. Follow this template exactly:
 
-${template}
+${template}`;
 
----
+  const prompt = `---
 
 Category: ${input.categoryLabel}
 Topic: ${input.topic}
@@ -334,7 +339,11 @@ META_DESCRIPTION: <the meta description, one line, no quotes, aim for exactly 48
 ===MARKDOWN===
 <the full article markdown starts here, beginning with a single # H1, continuing to the end of your response — no closing delimiter needed>`;
 
-  const rawText = await generateTextChecked(prompt, { maxTokens: 16000 }, buildMockDelimitedText(mockValue));
+  const rawText = await generateTextChecked(
+    prompt,
+    { maxTokens: 16000, cachedContext },
+    buildMockDelimitedText(mockValue)
+  );
   const result = parseArticleResponse(rawText);
 
   // Deterministic safety net — don't rely on the model hitting the

@@ -10,6 +10,10 @@ if (!MOCK_MODE && !apiKey) {
 const client = MOCK_MODE ? null : new Anthropic({ apiKey });
 
 const DEFAULT_MODEL = "claude-sonnet-5";
+// Used for short, low-reasoning calls (web-search retrieval, topic-phrase
+// extraction) that don't need full Sonnet-level reasoning — same quality
+// for these tasks, meaningfully cheaper per call.
+export const CLASSIFICATION_MODEL = "claude-haiku-4-5-20251001";
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
@@ -46,6 +50,13 @@ export interface GenerateOptions {
   maxTokens?: number;
   temperature?: number;
   system?: string;
+  // Large, byte-for-byte-reused text (e.g. a prompt template) to send as
+  // its own cached content block ahead of the actual prompt, so repeated
+  // calls that share this same context aren't billed full price for it
+  // every time. Only helps once the block is at/above Anthropic's cache
+  // minimum (1024 tokens for Sonnet) — smaller blocks are silently sent
+  // uncached instead of erroring.
+  cachedContext?: string;
 }
 
 const MOCK_RESPONSE =
@@ -67,7 +78,19 @@ async function generateTextWithMeta(prompt: string, options: GenerateOptions): P
     model = DEFAULT_MODEL,
     maxTokens = 4096,
     system,
+    cachedContext,
   } = options;
+
+  const content = cachedContext
+    ? [
+        {
+          type: "text" as const,
+          text: cachedContext,
+          cache_control: { type: "ephemeral" as const },
+        },
+        { type: "text" as const, text: prompt },
+      ]
+    : prompt;
 
   // `temperature` is deprecated/rejected for this model — deliberately
   // not forwarded to the API even if a caller passes it in `options`.
@@ -76,7 +99,7 @@ async function generateTextWithMeta(prompt: string, options: GenerateOptions): P
       model,
       max_tokens: maxTokens,
       system,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content }],
     });
 
     const textBlock = response.content.find((block) => block.type === "text");
@@ -100,7 +123,12 @@ export async function generateText(
 
 // Runs a single live web search via Claude's server-side web_search tool
 // and returns a handful of plain-text findings for the given query.
-export async function webSearch(query: string): Promise<string[]> {
+// Defaults to the cheaper classification-tier model — summarizing search
+// results into bullet points doesn't need full Sonnet-level reasoning.
+export async function webSearch(
+  query: string,
+  model: string = CLASSIFICATION_MODEL
+): Promise<string[]> {
   if (MOCK_MODE) {
     return [
       `[MOCK] Placeholder finding #1 for "${query}" — no live search performed.`,
@@ -110,7 +138,7 @@ export async function webSearch(query: string): Promise<string[]> {
 
   return withRetry(async () => {
     const response = await client!.messages.create({
-      model: DEFAULT_MODEL,
+      model,
       max_tokens: 1024,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
       messages: [

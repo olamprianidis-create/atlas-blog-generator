@@ -1,4 +1,5 @@
-import { webSearch, generateJSON } from "./anthropic";
+import { generateJSON } from "./anthropic";
+import type { ResearchQuery } from "./webSearch";
 
 export type KeywordSource = "people_also_ask" | "related_searches" | "long_tail" | "competitor";
 export type SearchIntent = "informational" | "commercial" | "transactional";
@@ -24,18 +25,16 @@ export interface KeywordResearchResult {
   strategy: string;
 }
 
-interface RawFinding {
-  source: KeywordSource;
-  query: string;
-  findings: string[];
-}
-
-function buildQueries(topic: string): { source: KeywordSource; query: string }[] {
+// Mock-mode-only stand-in for the query list this step used to run
+// itself (now it reuses runResearch()'s shared batch — see
+// researchKeywords() below) — kept just so buildMockResult() has
+// plausible query strings to echo back.
+function mockQueryLabels(topic: string): string[] {
   return [
-    { source: "people_also_ask", query: `${topic} people also ask questions` },
-    { source: "related_searches", query: `${topic} related searches google` },
-    { source: "long_tail", query: `${topic} long-tail keyword variations` },
-    { source: "competitor", query: `${topic} competitor keywords` },
+    `${topic} people also ask questions`,
+    `${topic} related searches google`,
+    `${topic} long-tail keyword variations`,
+    `${topic} competitor keywords`,
   ];
 }
 
@@ -61,7 +60,7 @@ function buildMockResult(topic: string, referenceKeywords: string[]): KeywordRes
   ];
 
   return {
-    queriesRun: buildQueries(topic).map((q) => q.query),
+    queriesRun: mockQueryLabels(topic),
     discoveredKeywords,
     userKeywordsAnalyzed: referenceKeywords.map((keyword, index) => ({
       keyword,
@@ -74,12 +73,18 @@ function buildMockResult(topic: string, referenceKeywords: string[]): KeywordRes
   };
 }
 
-// Runs 4 web searches to discover long-tail keyword opportunities for a
-// topic (no more static category keyword lists), then has Claude analyze,
-// cluster, and rank the findings — optionally comparing them against
-// keywords the user already had in mind.
+// Analyzes web search findings to discover long-tail keyword
+// opportunities for a topic (no more static category keyword lists),
+// clustering/ranking them — optionally comparing against keywords the
+// user already had in mind. Takes the already-fetched `research` batch
+// (runResearch() in utils/webSearch.ts) instead of running its own
+// separate web searches — that batch's 4 queries are written broadly
+// enough to double as keyword-research input, so this step no longer
+// needs its own 4 searches on top (was 8 total searches per article,
+// now 4).
 export async function researchKeywords(
   topic: string,
+  research: ResearchQuery[],
   userReferenceKeywords?: string,
   preliminaryKeywords?: string
 ): Promise<KeywordResearchResult> {
@@ -87,17 +92,8 @@ export async function researchKeywords(
   const primaryKeywords = parseReferenceKeywords(preliminaryKeywords);
   const mockValue = buildMockResult(topic, referenceKeywords);
 
-  const queries = buildQueries(topic);
-  const rawFindings: RawFinding[] = await Promise.all(
-    queries.map(async ({ source, query }) => ({
-      source,
-      query,
-      findings: await webSearch(query),
-    }))
-  );
-
-  const findingsSummary = rawFindings
-    .map((r) => `[${r.source}] Query: ${r.query}\n${r.findings.map((f) => `- ${f}`).join("\n")}`)
+  const findingsSummary = research
+    .map((r) => `Query: ${r.query}\n${r.findings.map((f) => `- ${f}`).join("\n")}`)
     .join("\n\n");
 
   const referenceSummary = referenceKeywords.length
@@ -116,7 +112,7 @@ export async function researchKeywords(
 
 Topic: ${topic}
 
-Raw findings from 4 web searches (People Also Ask questions, Google related searches, long-tail variations, and competitor keywords):
+Raw findings from 4 web searches covering trends/statistics, People Also Ask/related-search style queries, long-tail/competitor keyword angles, and expert opinion/recent research:
 ${findingsSummary}
 
 User's reference keywords (keywords the user already had in mind, may be empty): ${referenceSummary}
@@ -141,7 +137,7 @@ Respond with ONLY valid JSON in this exact shape, no markdown fences, no comment
   >(prompt, mockValue, { maxTokens: 8192 });
 
   return {
-    queriesRun: queries.map((q) => q.query),
+    queriesRun: research.map((r) => r.query),
     ...analyzed,
   };
 }

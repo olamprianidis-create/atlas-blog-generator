@@ -1,4 +1,4 @@
-import { generateText } from "./anthropic";
+import { generateText, CLASSIFICATION_MODEL } from "./anthropic";
 
 const STOP_WORDS = new Set([
   "how", "should", "the", "a", "an", "is", "are", "do", "does", "of", "for",
@@ -41,7 +41,7 @@ Prompt: ${trimmed}`;
 
   const response = await generateText(
     instruction,
-    { maxTokens: 20, temperature: 0 },
+    { maxTokens: 20, temperature: 0, model: CLASSIFICATION_MODEL },
     buildMockPhrase(trimmed)
   );
 

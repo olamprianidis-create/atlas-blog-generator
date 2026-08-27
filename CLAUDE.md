@@ -186,6 +186,19 @@ Always reference this template when generating outlines and articles.
 
 ---
 
+## API cost optimizations (2026-08-27)
+
+A cost audit found the blog-generation pipeline was running more/pricier Anthropic calls than needed per article. Four fixes landed, all preserving output quality:
+
+- **Web search consolidated from 8 calls to 4** (`utils/webSearch.ts`'s `runResearch()`, `utils/keywordResearch.ts`'s `researchKeywords()`). Keyword research used to run its own 4-query search batch (People Also Ask, related searches, long-tail, competitor) completely independently of `runResearch()`'s own 4-query batch (trends, statistics, research, expert opinion) — heavily overlapping ground, double the search-tool billing. `runResearch()`'s 4 queries are now written broadly enough to serve both purposes, and `researchKeywords()` takes that same `ResearchQuery[]` as a parameter instead of searching itself (`pages/api/research-keywords.ts` now runs `runResearch()` once and passes its result into both `generateOutline`'s eventual research input and `researchKeywords()`). The keyword-classification prompt still asks Claude to infer `source` per keyword ("whichever search it came from or most resembles") since findings are no longer strictly separated by originating query.
+- **Prompt caching on the article template** (`utils/anthropic.ts`'s new `cachedContext` option on `GenerateOptions`, used by `utils/article.ts`'s `generateArticle()`). `Blog_Structure_Prompt_UPDATED.md` (~1,500 tokens) plus its wrapping instruction is now sent as a separate `cache_control: {type: "ephemeral"}` content block ahead of the per-article prompt, instead of being interpolated into one plain string — repeat calls within the ~5-minute cache window (retries, back-to-back generations) get billed the ~90%-cheaper cached rate for that block instead of full price. Only helps once a cached block is at/above Anthropic's cache minimum (1024 tokens for Sonnet) — not applied to `generateJSON`'s short fixed system instruction, which is well under that floor and would see zero benefit.
+- **Trivial calls routed to a cheaper model** (`utils/anthropic.ts`'s new `CLASSIFICATION_MODEL` export, currently `claude-haiku-4-5-20251001`). `webSearch()` (the individual search-tool calls, now defaulting to this model) and `extractTopicPhrase()` in `utils/topicExtraction.ts` don't need full Sonnet-level reasoning for retrieval/short-classification work — `utils/outline.ts` and `utils/article.ts`'s full generation calls stay on `DEFAULT_MODEL` (Sonnet) since output quality matters most there.
+- **Retry behavior reviewed, left as-is** — `withRetry()` in `utils/anthropic.ts` only retries on 429/5xx, never on 4xx validation errors, so a bad prompt was never silently re-billed 3x; this was already correct.
+
+Net effect: a single article generation now fires 4 web searches instead of 8 (all on the cheaper model), and the article-writing call reuses a cached template block on repeat calls — no change to the actual article/outline/keyword output quality, verified via a real end-to-end generation against the live API after these changes.
+
+---
+
 ## Workflow Notes
 
 - **Generate step:** Uses live web search for fresh data + keyword spreadsheet
