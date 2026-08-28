@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { Readable } from "stream";
 import { getServiceClient } from "./supabase";
 
 // Setup required in Google Cloud Console before this works:
@@ -123,6 +124,12 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
     throw new Error(`Couldn't fetch the video file from storage (${videoResponse.status}).`);
   }
 
+  // googleapis' upload path expects a Node.js Readable (it calls .pipe()
+  // internally) — fetch()'s response.body is a Web Streams API
+  // ReadableStream, which has no .pipe() method, hence "part.body.pipe is
+  // not a function". Readable.fromWeb() bridges the two.
+  const videoStream = Readable.fromWeb(videoResponse.body as import("stream/web").ReadableStream);
+
   const insertResponse = await youtube.videos.insert({
     part: ["snippet", "status"],
     requestBody: {
@@ -138,7 +145,7 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
       },
     },
     media: {
-      body: videoResponse.body,
+      body: videoStream,
     },
   });
 
@@ -150,9 +157,10 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
   if (input.thumbnailUrl) {
     const thumbResponse = await fetch(input.thumbnailUrl);
     if (thumbResponse.ok && thumbResponse.body) {
+      const thumbStream = Readable.fromWeb(thumbResponse.body as import("stream/web").ReadableStream);
       await youtube.thumbnails.set({
         videoId,
-        media: { body: thumbResponse.body },
+        media: { body: thumbStream },
       });
     }
   }
