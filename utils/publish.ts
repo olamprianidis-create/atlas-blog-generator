@@ -1,7 +1,5 @@
 import { getServiceClient } from "./supabase";
 import { logPublishAttempt } from "./webhookLogger";
-import { postArticleToLinkedin } from "./linkedin";
-import { buildArticleUrl } from "./site";
 
 export interface PublishResult {
   success: boolean;
@@ -60,38 +58,13 @@ export async function publishArticleById(articleId: string): Promise<PublishResu
 
   await logPublishAttempt({ articleId, status: "success", message: "Marked published" });
 
-  // Best-effort — a LinkedIn failure (not connected, expired token, rate
-  // limit) never rolls back or fails the article publish itself.
-  await postArticleToLinkedinBestEffort(articleId, article.title, article.meta_description);
+  // LinkedIn auto-posting disabled 2026-08-28 — it was blocking the
+  // "just publish it" path (0008_linkedin.sql was never run, so every
+  // attempt failed at the DB step) with no benefit while LinkedIn isn't
+  // even connected yet. Revisit when LinkedIn is actually set up (see
+  // CLAUDE.md's "LinkedIn" / "Platform setup checklist" sections) — the
+  // manual "Share to LinkedIn" button on the Published page still exists
+  // for posting individually once that's ready.
 
   return { success: true, articleId };
-}
-
-async function postArticleToLinkedinBestEffort(
-  articleId: string,
-  title: string,
-  metaDescription: string | null
-): Promise<void> {
-  const supabase = getServiceClient();
-
-  try {
-    const urn = await postArticleToLinkedin({
-      title,
-      summary: metaDescription ?? undefined,
-      articleUrl: buildArticleUrl(title),
-    });
-    await supabase
-      .from("scheduled_articles")
-      .update({ linkedin_status: "posted", linkedin_post_urn: urn, linkedin_error: null, linkedin_posted_at: new Date().toISOString() })
-      .eq("id", articleId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    await supabase
-      .from("scheduled_articles")
-      .update({
-        linkedin_status: message.includes("isn't connected") || message.includes("connection expired") ? "not_connected" : "failed",
-        linkedin_error: message,
-      })
-      .eq("id", articleId);
-  }
 }
