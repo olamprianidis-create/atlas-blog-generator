@@ -177,13 +177,13 @@ export default function EditUploadPage() {
             live yet.
           </p>
 
-          {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/media-has-caption */}
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             src={upload.video_url}
-            muted
-            playsInline
+            poster={upload.thumbnail_url ?? undefined}
+            controls
             preload="metadata"
-            className="mt-4 h-40 w-full max-w-xs rounded-md border border-slate-200 object-cover"
+            className="mt-4 h-56 w-full max-w-xs rounded-md border border-slate-200 bg-black object-contain"
           />
 
           <form onSubmit={handleSave} className="mt-6 flex flex-col gap-6">

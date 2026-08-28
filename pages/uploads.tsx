@@ -526,45 +526,54 @@ export default function UploadsPage() {
                       ? `Scheduled: ${formatDateTime(u.publish_at)}`
                       : `Uploaded: ${formatDateTime(u.created_at)}`;
 
-                  const content = (
-                    <>
-                      <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                        {u.thumbnail_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.thumbnail_url} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          // First frame of the video itself, since no custom
-                          // thumbnail was set — browsers render this as a
-                          // static image once metadata loads.
-                          // eslint-disable-next-line jsx-a11y/media-has-caption
-                          <video src={u.video_url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-slate-900">{u.title}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">{dateLine}</p>
-                        {u.youtube_error && <p className="mt-1 text-xs text-red-600">YouTube: {u.youtube_error}</p>}
-                        {u.tiktok_error && <p className="mt-1 text-xs text-red-600">TikTok: {u.tiktok_error}</p>}
-                        {editable && <p className="mt-1 text-xs font-medium text-blue-600">Click to edit</p>}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        {u.target_youtube && <StatusBadge status={u.youtube_status} />}
-                        {u.target_tiktok && <StatusBadge status={u.tiktok_status} />}
-                      </div>
-                    </>
-                  );
-
                   return (
-                    <li key={u.id}>
+                    <li key={u.id} className={`${cardClass} flex items-center gap-3`}>
+                      {/* Real playable video with native controls — kept
+                          outside the edit Link below, since a <video>
+                          nested inside an <a> swallows clicks meant for
+                          the link (this was silently breaking both
+                          "watch the video" and "click to edit" before). */}
+                      <div className="h-24 w-40 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-black">
+                        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                        <video
+                          src={u.video_url}
+                          poster={u.thumbnail_url ?? undefined}
+                          controls
+                          preload="metadata"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+
                       {editable ? (
                         <Link
                           href={`/uploads/${u.id}/edit`}
-                          className={`${cardClass} flex items-center gap-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40`}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-md transition-colors hover:bg-blue-50/40"
                         >
-                          {content}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-900">{u.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">{dateLine}</p>
+                            {u.youtube_error && <p className="mt-1 text-xs text-red-600">YouTube: {u.youtube_error}</p>}
+                            {u.tiktok_error && <p className="mt-1 text-xs text-red-600">TikTok: {u.tiktok_error}</p>}
+                            <p className="mt-1 text-xs font-medium text-blue-600">Click to edit</p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            {u.target_youtube && <StatusBadge status={u.youtube_status} />}
+                            {u.target_tiktok && <StatusBadge status={u.tiktok_status} />}
+                          </div>
                         </Link>
                       ) : (
-                        <div className={`${cardClass} flex items-center gap-3`}>{content}</div>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-900">{u.title}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">{dateLine}</p>
+                            {u.youtube_error && <p className="mt-1 text-xs text-red-600">YouTube: {u.youtube_error}</p>}
+                            {u.tiktok_error && <p className="mt-1 text-xs text-red-600">TikTok: {u.tiktok_error}</p>}
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            {u.target_youtube && <StatusBadge status={u.youtube_status} />}
+                            {u.target_tiktok && <StatusBadge status={u.tiktok_status} />}
+                          </div>
+                        </div>
                       )}
                     </li>
                   );
