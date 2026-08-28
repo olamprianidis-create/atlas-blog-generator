@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
-import { uploadVideoToYoutube } from "../../../utils/youtube";
-import { publishVideoToTiktok } from "../../../utils/tiktok";
+import { publishVideoUploadById } from "../../../utils/publishVideo";
 
 interface CreateUploadBody {
   title: string;
@@ -67,13 +66,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       publish_at: body.publishAt || null,
 
       target_youtube: body.targetYoutube,
-      youtube_status: !body.targetYoutube ? "not_selected" : isScheduled ? "pending" : "publishing",
+      // Both the immediate and scheduled paths insert as "pending" —
+      // publishVideoUploadById() is what actually flips it to
+      // published/failed, called either right below (immediate) or later
+      // by the cron check (scheduled). One code path does the real work
+      // either way, so scheduling isn't a second, drifting implementation.
+      youtube_status: !body.targetYoutube ? "not_selected" : "pending",
       youtube_privacy_status: body.youtubePrivacyStatus,
       youtube_category_id: body.youtubeCategoryId || null,
       youtube_made_for_kids: body.youtubeMadeForKids,
 
       target_tiktok: body.targetTiktok,
-      tiktok_status: !body.targetTiktok ? "not_selected" : isScheduled ? "pending" : "publishing",
+      tiktok_status: !body.targetTiktok ? "not_selected" : "pending",
       tiktok_privacy_level: body.tiktokPrivacyLevel,
       tiktok_disable_comment: body.tiktokDisableComment,
       tiktok_disable_duet: body.tiktokDisableDuet,
@@ -88,72 +92,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (isScheduled) {
-    // Scheduled publishing isn't wired to a cron job yet — see CLAUDE.md's
-    // "Uploads" section. The row is saved as "pending" so it's visible on
-    // the Uploads page, but nothing currently flips it to "publishing".
+    // Row stays "pending" — pages/api/cron/publish-scheduled.ts checks
+    // for due video_uploads rows (alongside scheduled articles) and calls
+    // the same publishVideoUploadById() this immediate path uses below.
     return res.status(201).json({ upload: row });
   }
 
-  const updates: Record<string, unknown> = {};
+  await publishVideoUploadById(row.id);
 
-  if (body.targetYoutube) {
-    try {
-      const videoId = await uploadVideoToYoutube({
-        videoUrl: body.videoUrl,
-        title: body.title.trim(),
-        description: body.description,
-        tags: body.tags,
-        categoryId: body.youtubeCategoryId,
-        privacyStatus: body.youtubePrivacyStatus,
-        madeForKids: body.youtubeMadeForKids,
-        thumbnailUrl: body.thumbnailUrl,
-      });
-      updates.youtube_status = "published";
-      updates.youtube_video_id = videoId;
-      updates.youtube_error = null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      updates.youtube_status = message.includes("isn't connected") ? "not_connected" : "failed";
-      updates.youtube_error = message;
-    }
-  }
-
-  if (body.targetTiktok) {
-    try {
-      const publishId = await publishVideoToTiktok({
-        videoUrl: body.videoUrl,
-        title: body.title.trim(),
-        privacyLevel: body.tiktokPrivacyLevel,
-        disableComment: body.tiktokDisableComment,
-        disableDuet: body.tiktokDisableDuet,
-        disableStitch: body.tiktokDisableStitch,
-        coverTimestampMs: body.tiktokCoverTimestampMs,
-      });
-      updates.tiktok_status = "published";
-      updates.tiktok_publish_id = publishId;
-      updates.tiktok_error = null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      updates.tiktok_status = message.includes("isn't connected") ? "not_connected" : "failed";
-      updates.tiktok_error = message;
-    }
-  }
-
-  const anyPublished = updates.youtube_status === "published" || updates.tiktok_status === "published";
-  if (anyPublished) {
-    updates.published_at = new Date().toISOString();
-  }
-  updates.updated_at = new Date().toISOString();
-
-  const { data: updated, error: updateError } = await db
+  const { data: updated, error: refetchError } = await db
     .from("video_uploads")
-    .update(updates)
-    .eq("id", row.id)
     .select()
+    .eq("id", row.id)
     .single();
 
-  if (updateError) {
-    return res.status(500).json({ error: updateError.message });
+  if (refetchError || !updated) {
+    return res.status(500).json({ error: refetchError?.message ?? "Failed to reload the upload." });
   }
 
   return res.status(201).json({ upload: updated });

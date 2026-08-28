@@ -1,10 +1,12 @@
-name: Publish scheduled articles
+name: Publish scheduled articles and videos
 
 # Vercel's native Cron Jobs are capped at once/day on the Hobby plan
 # regardless of the schedule configured in vercel.json, which is why
 # articles scheduled later in the day were sitting unpublished for up
 # to 24 hours. This workflow pings the same endpoint far more often so
-# scheduled publish times are actually honored.
+# scheduled publish times are actually honored. Since 2026-08-28, the
+# same endpoint also publishes due video_uploads rows (YouTube/TikTok)
+# — no second workflow/cron job needed, this one now covers both.
 on:
   schedule:
     - cron: "*/10 * * * *"
