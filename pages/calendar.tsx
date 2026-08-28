@@ -6,7 +6,6 @@ import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 const CHECKED_COLOR = "#5f7644";
 const PAST_UNCHECKED_COLOR = "#f2730b";
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
-const MAX_VISIBLE_CHIPS = 2;
 
 function platformColorClass(value: string) {
   return PLATFORMS.find((p) => p.value === value)?.colorClass ?? "bg-slate-400";
@@ -39,17 +38,45 @@ function todayDateStr() {
   return toDateStr(now.getFullYear(), now.getMonth() + 1, now.getDate());
 }
 
-function getMonthGrid(year: number, month: number): (number | null)[][] {
+interface DayCell {
+  day: number;
+  year: number;
+  month: number; // 1-12
+  isCurrentMonth: boolean;
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+// Always fills every cell with a real date — leading/trailing cells that
+// belong to the previous/next month (e.g. the month starts on a Saturday)
+// show that month's actual day number instead of a blank box, matching
+// how Google/Apple Calendar render a month grid.
+function getMonthGrid(year: number, month: number): DayCell[][] {
   const firstDay = new Date(year, month - 1, 1);
-  const daysInMonth = new Date(year, month, 0).getDate();
   const firstWeekday = (firstDay.getDay() + 6) % 7; // 0 = Monday
+  const totalDaysInMonth = daysInMonth(year, month);
 
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstWeekday; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const totalDaysInPrevMonth = daysInMonth(prevYear, prevMonth);
 
-  const rows: (number | null)[][] = [];
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  const cells: DayCell[] = [];
+  for (let i = firstWeekday; i > 0; i--) {
+    cells.push({ day: totalDaysInPrevMonth - i + 1, year: prevYear, month: prevMonth, isCurrentMonth: false });
+  }
+  for (let d = 1; d <= totalDaysInMonth; d++) {
+    cells.push({ day: d, year, month, isCurrentMonth: true });
+  }
+  for (let d = 1; cells.length % 7 !== 0; d++) {
+    cells.push({ day: d, year: nextYear, month: nextMonth, isCurrentMonth: false });
+  }
+
+  const rows: DayCell[][] = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
   return rows;
 }
@@ -73,14 +100,28 @@ export default function CalendarPage() {
   );
 
   useEffect(() => {
-    fetch(`/api/calendar/days?year=${viewYear}&month=${viewMonth}`)
-      .then((res) => res.json())
-      .then((days: string[]) => setCheckedDays(new Set(days)))
+    // The grid always shows full weeks, so it leaks a few days from the
+    // previous/next month at the edges — fetch those two months as well
+    // (not just the viewed one) so those leaking days' checked/event state
+    // is accurate instead of always appearing empty.
+    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
+    const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
+    const nextMonth = viewMonth === 12 ? 1 : viewMonth + 1;
+    const nextYear = viewMonth === 12 ? viewYear + 1 : viewYear;
+    const months = [
+      [viewYear, viewMonth],
+      [prevYear, prevMonth],
+      [nextYear, nextMonth],
+    ];
+
+    Promise.all(months.map(([y, m]) => fetch(`/api/calendar/days?year=${y}&month=${m}`).then((res) => res.json())))
+      .then((results: string[][]) => setCheckedDays(new Set(results.flat())))
       .catch((err) => console.error("Failed to load calendar days:", err));
 
-    fetch(`/api/calendar/events?year=${viewYear}&month=${viewMonth}`)
-      .then((res) => res.json())
-      .then((data: CalendarEventItem[]) => setEvents(data))
+    Promise.all(
+      months.map(([y, m]) => fetch(`/api/calendar/events?year=${y}&month=${m}`).then((res) => res.json()))
+    )
+      .then((results: CalendarEventItem[][]) => setEvents(results.flat()))
       .catch((err) => console.error("Failed to load calendar events:", err));
   }, [viewYear, viewMonth]);
 
@@ -234,23 +275,12 @@ export default function CalendarPage() {
 
               {grid.map((row, rowIndex) => (
                 <div key={rowIndex} className="grid grid-cols-7 border-b border-slate-200 last:border-b-0">
-                  {row.map((day, colIndex) => {
-                    if (day === null) {
-                      return (
-                        <div
-                          key={colIndex}
-                          className="min-h-[104px] border-r border-slate-100 bg-slate-50 last:border-r-0"
-                        />
-                      );
-                    }
-
-                    const dateStr = toDateStr(viewYear, viewMonth, day);
+                  {row.map((cell, colIndex) => {
+                    const dateStr = toDateStr(cell.year, cell.month, cell.day);
                     const isChecked = checkedDays.has(dateStr);
                     const isPast = dateStr < today;
                     const isTodayCell = dateStr === today;
                     const chips = getChipsForDate(dateStr);
-                    const visibleChips = chips.slice(0, MAX_VISIBLE_CHIPS);
-                    const overflowCount = chips.length - visibleChips.length;
 
                     const cellStyle = isChecked
                       ? { backgroundColor: CHECKED_COLOR }
@@ -258,6 +288,7 @@ export default function CalendarPage() {
                         ? { backgroundColor: PAST_UNCHECKED_COLOR }
                         : undefined;
                     const textTone = isChecked || isPast ? "text-white" : "text-slate-900";
+                    const dimmed = !cell.isCurrentMonth && !cellStyle;
 
                     return (
                       <button
@@ -265,30 +296,27 @@ export default function CalendarPage() {
                         type="button"
                         onClick={() => setSelectedDate(dateStr)}
                         style={cellStyle}
-                        className={`relative flex min-h-[104px] flex-col gap-1 border-r border-slate-100 p-2 pb-7 text-left transition-colors last:border-r-0 hover:brightness-95 ${
-                          cellStyle ? "" : "bg-white"
+                        className={`relative flex h-56 flex-col gap-1 overflow-hidden border-r border-slate-100 p-2 pb-7 text-left transition-colors last:border-r-0 hover:brightness-95 ${
+                          cellStyle ? "" : dimmed ? "bg-slate-50" : "bg-white"
                         }`}
                       >
                         <span
-                          className={`shrink-0 text-sm font-semibold ${textTone} ${isTodayCell && !cellStyle ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
+                          className={`shrink-0 text-sm font-semibold ${dimmed ? "text-slate-400" : textTone} ${isTodayCell && !cellStyle ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
                         >
-                          {day}
+                          {cell.day}
                         </span>
 
-                        <div className="flex min-w-0 flex-col gap-1">
-                          {visibleChips.map((chip) => (
+                        <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
+                          {chips.map((chip) => (
                             <span
                               key={chip.key}
                               className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
                                 cellStyle ? "ring-1 ring-white/40" : ""
-                              }`}
+                              } ${dimmed ? "opacity-60" : ""}`}
                             >
                               {chip.label}
                             </span>
                           ))}
-                          {overflowCount > 0 && (
-                            <span className={`text-[10px] font-medium ${textTone}`}>+{overflowCount} more</span>
-                          )}
                         </div>
 
                         <span
