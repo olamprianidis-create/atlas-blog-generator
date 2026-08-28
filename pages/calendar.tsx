@@ -491,6 +491,10 @@ export default function CalendarPage() {
             setEvents((current) => current.map((e) => (e.id === event.id ? event : e)))
           }
           onEventDeleted={(eventId) => setEvents((current) => current.filter((e) => e.id !== eventId))}
+          onArticleDeleted={(articleId) =>
+            setScheduledArticles((current) => current.filter((a) => a.id !== articleId))
+          }
+          onVideoDeleted={(uploadId) => setVideoUploads((current) => current.filter((u) => u.id !== uploadId))}
         />
       )}
     </AppLayout>

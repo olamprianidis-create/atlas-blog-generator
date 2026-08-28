@@ -37,6 +37,29 @@ interface CalendarDayModalProps {
   onEventCreated: (event: CalendarEventItem) => void;
   onEventUpdated: (event: CalendarEventItem) => void;
   onEventDeleted: (eventId: string) => void;
+  onArticleDeleted: (articleId: string) => void;
+  onVideoDeleted: (uploadId: string) => void;
+}
+
+function TrashButton({ onClick, label }: { onClick: (e: React.MouseEvent) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+    >
+      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+        <path
+          d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
 }
 
 function formatDateLabel(dateStr: string) {
@@ -271,9 +294,59 @@ export default function CalendarDayModal({
   onEventCreated,
   onEventUpdated,
   onEventDeleted,
+  onArticleDeleted,
+  onVideoDeleted,
 }: CalendarDayModalProps) {
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [deletingArticleId, setDeletingArticleId] = useState<string | null>(null);
+  const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
+
+  async function handleDeleteArticle(article: ScheduledArticleForDay) {
+    const confirmed = window.confirm(
+      article.status === "published"
+        ? `Permanently delete "${article.title}"? It's already live — this removes it from the ATLAS Website immediately, not just from this calendar. This can't be undone.`
+        : `Delete the scheduled draft "${article.title}"? This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingArticleId(article.id);
+    try {
+      const response = await fetch(`/api/scheduled-articles/${article.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error ?? "Failed to delete article");
+      }
+      onArticleDeleted(article.id);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete article");
+    } finally {
+      setDeletingArticleId(null);
+    }
+  }
+
+  async function handleDeleteVideo(video: VideoUploadForDay) {
+    const confirmed = window.confirm(
+      video.status === "published"
+        ? `Remove "${video.title}" from our records? It's already live on ${video.platform === "youtube" ? "YouTube" : "TikTok"} — this only deletes our tracking of it, it does NOT un-publish or delete the actual video there.`
+        : `Delete "${video.title}"? This can't be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingUploadId(video.uploadId);
+    try {
+      const response = await fetch(`/api/uploads/${video.uploadId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error ?? "Failed to delete upload");
+      }
+      onVideoDeleted(video.uploadId);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete upload");
+    } finally {
+      setDeletingUploadId(null);
+    }
+  }
 
   async function handleCreate(data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }) {
     const response = await fetch("/api/calendar/events", {
@@ -378,6 +451,12 @@ export default function CalendarDayModal({
                 >
                   {article.status === "published" ? "View Statistics" : "View Scheduled Post"}
                 </Link>
+                <TrashButton
+                  label="Delete article"
+                  onClick={() => {
+                    if (deletingArticleId !== article.id) void handleDeleteArticle(article);
+                  }}
+                />
               </div>
             ))}
 
@@ -408,6 +487,12 @@ export default function CalendarDayModal({
                       View
                     </a>
                   )}
+                  <TrashButton
+                    label="Delete upload"
+                    onClick={() => {
+                      if (deletingUploadId !== video.uploadId) void handleDeleteVideo(video);
+                    }}
+                  />
                 </div>
               );
             })}
@@ -429,11 +514,22 @@ export default function CalendarDayModal({
                   onDelete={() => handleDelete(event.id)}
                 />
               ) : (
-                <button
+                // A div, not a <button> — it now contains a nested
+                // interactive TrashButton, and nesting a real button
+                // inside another button is invalid HTML that silently
+                // breaks click handling.
+                <div
                   key={event.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditingEventId(event.id)}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setEditingEventId(event.id);
+                    }
+                  }}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
                 >
                   {event.thumbnail_url ? (
                     <img src={event.thumbnail_url} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />
@@ -464,7 +560,15 @@ export default function CalendarDayModal({
                     )}
                   </div>
                   <span className="shrink-0 text-xs font-medium text-slate-400">Edit</span>
-                </button>
+                  <TrashButton
+                    label="Delete event"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!window.confirm("Delete this event? This can't be undone.")) return;
+                      void handleDelete(event.id);
+                    }}
+                  />
+                </div>
               )
             )}
           </div>

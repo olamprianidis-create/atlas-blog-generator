@@ -85,6 +85,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ upload: updated });
   }
 
-  res.setHeader("Allow", "GET, PATCH");
+  if (req.method === "DELETE") {
+    // Only removes our own tracking row — does not un-publish an
+    // already-live YouTube/TikTok video. The client is responsible for
+    // warning the admin about that distinction before calling this.
+    const { error } = await db.from("video_uploads").delete().eq("id", id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({});
+  }
+
+  res.setHeader("Allow", "GET, PATCH, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
