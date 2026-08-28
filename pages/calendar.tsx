@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "../components/layout/AppLayout";
-import CalendarDayModal, { CalendarEventItem, ScheduledArticleForDay } from "../components/CalendarDayModal";
+import CalendarDayModal, {
+  CalendarEventItem,
+  ScheduledArticleForDay,
+  VideoUploadForDay,
+} from "../components/CalendarDayModal";
 import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
 const CHECKED_COLOR = "#5f7644";
@@ -21,6 +25,67 @@ interface ScheduledArticleRow {
   publish_date: string | null;
   image_url: string | null;
   status: "scheduled" | "published";
+}
+
+interface VideoUploadRow {
+  id: string;
+  title: string;
+  publish_at: string | null;
+  published_at: string | null;
+  created_at: string;
+  target_youtube: boolean;
+  youtube_status: string;
+  youtube_video_id: string | null;
+  target_tiktok: boolean;
+  tiktok_status: string;
+  tiktok_publish_id: string | null;
+}
+
+// One video_uploads row can target multiple platforms (YouTube + TikTok),
+// each with its own independent status — this flattens a row into one
+// entry per targeted-and-attempted platform, so a single video shows as
+// two separate calendar chips/entries (one per platform) instead of one
+// combined blob, per the explicit "video one on YouTube and video one on
+// TikTok should be two events" requirement.
+interface VideoPlatformEntry {
+  key: string;
+  uploadId: string;
+  platform: "youtube" | "tiktok";
+  title: string;
+  status: string;
+  dateStr: string | null;
+  externalId: string | null;
+}
+
+function flattenVideoUploads(uploads: VideoUploadRow[]): VideoPlatformEntry[] {
+  const entries: VideoPlatformEntry[] = [];
+  for (const upload of uploads) {
+    if (upload.target_youtube && upload.youtube_status !== "not_selected") {
+      const isoDate = upload.published_at ?? upload.publish_at ?? upload.created_at;
+      entries.push({
+        key: `upload-${upload.id}-youtube`,
+        uploadId: upload.id,
+        platform: "youtube",
+        title: upload.title,
+        status: upload.youtube_status,
+        dateStr: isoDate.slice(0, 10),
+        externalId: upload.youtube_video_id,
+      });
+    }
+    if (upload.target_tiktok && upload.tiktok_status !== "not_selected") {
+      const isoDate = upload.published_at ?? upload.publish_at ?? upload.created_at;
+      entries.push({
+        key: `upload-${upload.id}-tiktok`,
+        uploadId: upload.id,
+        platform: "tiktok",
+        title: upload.title,
+        status: upload.tiktok_status,
+        dateStr: isoDate.slice(0, 10),
+        externalId: upload.tiktok_publish_id,
+      });
+    }
+  }
+  return entries;
 }
 
 const PUBLISHED_BLOG_POST_COLOR_CLASS = "bg-green-700";
@@ -90,6 +155,7 @@ export default function CalendarPage() {
   const [checkedDays, setCheckedDays] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [scheduledArticles, setScheduledArticles] = useState<ScheduledArticleRow[]>([]);
+  const [videoUploads, setVideoUploads] = useState<VideoUploadRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const grid = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
@@ -143,7 +209,14 @@ export default function CalendarPage() {
         setScheduledArticles([...scheduledRows, ...publishedRows]);
       })
       .catch((err) => console.error("Failed to load blog posts for calendar:", err));
+
+    fetch("/api/uploads")
+      .then((res) => res.json())
+      .then((data: { uploads: VideoUploadRow[] }) => setVideoUploads(data.uploads ?? []))
+      .catch((err) => console.error("Failed to load video uploads for calendar:", err));
   }, []);
+
+  const videoPlatformEntries = useMemo(() => flattenVideoUploads(videoUploads), [videoUploads]);
 
   function goToPrevMonth() {
     if (viewMonth === 1) {
@@ -205,6 +278,10 @@ export default function CalendarPage() {
     return events.filter((event) => event.event_date === dateStr);
   }
 
+  function videosForDate(dateStr: string) {
+    return videoPlatformEntries.filter((entry) => entry.dateStr === dateStr);
+  }
+
   function getChipsForDate(dateStr: string): { key: string; label: string; colorClass: string }[] {
     const chips: { key: string; label: string; colorClass: string }[] = [];
 
@@ -213,6 +290,17 @@ export default function CalendarPage() {
         key: `article-${article.id}`,
         label: article.title,
         colorClass: article.status === "published" ? PUBLISHED_BLOG_POST_COLOR_CLASS : BLOG_POST_COLOR_CLASS,
+      });
+    }
+
+    // Each targeted platform on a video_uploads row gets its own chip —
+    // a Short posted to both YouTube and TikTok shows as two separate
+    // entries on the same day, not one combined blob.
+    for (const video of videosForDate(dateStr)) {
+      chips.push({
+        key: video.key,
+        label: `${video.title} (${platformLabel(video.platform)})`,
+        colorClass: platformColorClass(video.platform),
       });
     }
 
@@ -394,6 +482,7 @@ export default function CalendarPage() {
         <CalendarDayModal
           dateStr={selectedDate}
           scheduledArticles={findArticlesForDate(selectedDate)}
+          videoUploads={videosForDate(selectedDate)}
           events={eventsForDate(selectedDate)}
           onClose={() => setSelectedDate(null)}
           onEventCreated={(event) => setEvents((current) => [...current, event])}

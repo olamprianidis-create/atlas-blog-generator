@@ -18,9 +18,19 @@ export interface CalendarEventItem {
   thumbnail_url: string | null;
 }
 
+export interface VideoUploadForDay {
+  key: string;
+  uploadId: string;
+  platform: "youtube" | "tiktok";
+  title: string;
+  status: string;
+  externalId: string | null;
+}
+
 interface CalendarDayModalProps {
   dateStr: string;
   scheduledArticles: ScheduledArticleForDay[];
+  videoUploads: VideoUploadForDay[];
   events: CalendarEventItem[];
   onClose: () => void;
   onEventCreated: (event: CalendarEventItem) => void;
@@ -41,6 +51,10 @@ function formatDateLabel(dateStr: string) {
 
 function platformMeta(value: string) {
   return PLATFORMS.find((p) => p.value === value);
+}
+
+function platformColorClass(value: string) {
+  return platformMeta(value)?.colorClass ?? "bg-slate-400";
 }
 
 interface EventFormProps {
@@ -220,9 +234,37 @@ function EventForm({
   );
 }
 
+function platformDisplayLabel(value: string) {
+  return platformMeta(value)?.label ?? value;
+}
+
+function videoStatusLabel(status: string) {
+  switch (status) {
+    case "published":
+      return "Published";
+    case "publishing":
+      return "Publishing…";
+    case "pending":
+      return "Scheduled";
+    case "failed":
+      return "Failed";
+    case "not_connected":
+      return "Not connected";
+    default:
+      return status;
+  }
+}
+
+function videoWatchUrl(platform: "youtube" | "tiktok", externalId: string | null) {
+  if (!externalId) return null;
+  if (platform === "youtube") return `https://youtube.com/watch?v=${externalId}`;
+  return null; // TikTok's publish_id isn't a public post id we can link to directly.
+}
+
 export default function CalendarDayModal({
   dateStr,
   scheduledArticles,
+  videoUploads,
   events,
   onClose,
   onEventCreated,
@@ -300,7 +342,13 @@ export default function CalendarDayModal({
         </div>
 
         <div className="mt-4 flex flex-col gap-2">
-          {scheduledArticles.length > 0 ? (
+          {scheduledArticles.length === 0 && videoUploads.length === 0 && (
+            <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
+              Nothing to see here.
+            </p>
+          )}
+
+          {scheduledArticles.length > 0 &&
             scheduledArticles.map((article) => (
               <div key={article.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
                 {article.image_url ? (
@@ -330,12 +378,38 @@ export default function CalendarDayModal({
                   {article.status === "published" ? "View Statistics" : "View Scheduled Post"}
                 </Link>
               </div>
-            ))
-          ) : (
-            <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
-              Nothing to see here.
-            </p>
-          )}
+            ))}
+
+          {videoUploads.length > 0 &&
+            videoUploads.map((video) => {
+              const watchUrl = videoWatchUrl(video.platform, video.externalId);
+              return (
+                <div
+                  key={video.key}
+                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-3"
+                >
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-white ${platformColorClass(video.platform)}`}
+                  >
+                    {platformDisplayLabel(video.platform)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">{video.title}</p>
+                    <p className="text-xs text-slate-500">{videoStatusLabel(video.status)}</p>
+                  </div>
+                  {watchUrl && (
+                    <a
+                      href={watchUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
+              );
+            })}
         </div>
 
         {events.length > 0 && (
