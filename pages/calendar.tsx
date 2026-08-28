@@ -190,13 +190,15 @@ export default function CalendarPage() {
     }
   }
 
-  function findArticleForDate(dateStr: string): ScheduledArticleForDay | null {
-    const match = scheduledArticles.find(
-      (article) => article.publish_date && article.publish_date.slice(0, 10) === dateStr
-    );
-    return match
-      ? { id: match.id, title: match.title, image_url: match.image_url, status: match.status }
-      : null;
+  function findArticlesForDate(dateStr: string): ScheduledArticleForDay[] {
+    return scheduledArticles
+      .filter((article) => article.publish_date && article.publish_date.slice(0, 10) === dateStr)
+      .map((article) => ({
+        id: article.id,
+        title: article.title,
+        image_url: article.image_url,
+        status: article.status,
+      }));
   }
 
   function eventsForDate(dateStr: string) {
@@ -206,8 +208,7 @@ export default function CalendarPage() {
   function getChipsForDate(dateStr: string): { key: string; label: string; colorClass: string }[] {
     const chips: { key: string; label: string; colorClass: string }[] = [];
 
-    const article = findArticleForDate(dateStr);
-    if (article) {
+    for (const article of findArticlesForDate(dateStr)) {
       chips.push({
         key: `article-${article.id}`,
         label: article.title,
@@ -392,7 +393,7 @@ export default function CalendarPage() {
       {selectedDate && (
         <CalendarDayModal
           dateStr={selectedDate}
-          scheduledArticle={findArticleForDate(selectedDate)}
+          scheduledArticles={findArticlesForDate(selectedDate)}
           events={eventsForDate(selectedDate)}
           onClose={() => setSelectedDate(null)}
           onEventCreated={(event) => setEvents((current) => [...current, event])}

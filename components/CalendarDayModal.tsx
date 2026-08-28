@@ -20,7 +20,7 @@ export interface CalendarEventItem {
 
 interface CalendarDayModalProps {
   dateStr: string;
-  scheduledArticle: ScheduledArticleForDay | null;
+  scheduledArticles: ScheduledArticleForDay[];
   events: CalendarEventItem[];
   onClose: () => void;
   onEventCreated: (event: CalendarEventItem) => void;
@@ -222,7 +222,7 @@ function EventForm({
 
 export default function CalendarDayModal({
   dateStr,
-  scheduledArticle,
+  scheduledArticles,
   events,
   onClose,
   onEventCreated,
@@ -299,42 +299,38 @@ export default function CalendarDayModal({
           </button>
         </div>
 
-        <div className="mt-4">
-          {scheduledArticle ? (
-            <div className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
-              {scheduledArticle.image_url ? (
-                <img
-                  src={scheduledArticle.image_url}
-                  alt=""
-                  className="h-12 w-12 shrink-0 rounded-md object-cover"
-                />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-300">
-                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
-                    <path
-                      d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Z"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    />
-                    <path d="m4 16 4.5-4.5a2 2 0 0 1 2.8 0L16 16" stroke="currentColor" strokeWidth="1.5" />
-                    <circle cx="15.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
-                  </svg>
-                </div>
-              )}
-              <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">
-                {scheduledArticle.title}
-              </p>
-              <Link
-                href={
-                  scheduledArticle.status === "published"
-                    ? `/published/${scheduledArticle.id}/stats`
-                    : `/?scheduledId=${scheduledArticle.id}`
-                }
-                className="shrink-0 whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-              >
-                {scheduledArticle.status === "published" ? "View Statistics" : "View Scheduled Post"}
-              </Link>
-            </div>
+        <div className="mt-4 flex flex-col gap-2">
+          {scheduledArticles.length > 0 ? (
+            scheduledArticles.map((article) => (
+              <div key={article.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
+                {article.image_url ? (
+                  <img src={article.image_url} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-300">
+                    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
+                      <path
+                        d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Z"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <path d="m4 16 4.5-4.5a2 2 0 0 1 2.8 0L16 16" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="15.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+                )}
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{article.title}</p>
+                <Link
+                  href={
+                    article.status === "published"
+                      ? `/published/${article.id}/stats`
+                      : `/?scheduledId=${article.id}`
+                  }
+                  className="shrink-0 whitespace-nowrap rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  {article.status === "published" ? "View Statistics" : "View Scheduled Post"}
+                </Link>
+              </div>
+            ))
           ) : (
             <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
               Nothing to see here.
