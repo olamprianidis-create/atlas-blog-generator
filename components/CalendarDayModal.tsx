@@ -16,6 +16,7 @@ export interface CalendarEventItem {
   platforms: string[];
   description: string | null;
   thumbnail_url: string | null;
+  completed_platforms: string[];
 }
 
 export interface VideoUploadForDay {

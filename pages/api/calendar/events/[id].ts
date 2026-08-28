@@ -10,6 +10,7 @@ interface CalendarEvent {
   platforms: string[];
   description: string | null;
   thumbnail_url: string | null;
+  completed_platforms: string[];
 }
 
 export default async function handler(
@@ -42,19 +43,33 @@ export default async function handler(
     }
 
     try {
+      const updateRow = {
+        platforms: platformList,
+        description: description || null,
+        thumbnail_url: thumbnailUrl || null,
+      };
+
       const { data, error } = await supabase
         .from("content_calendar_events")
-        .update({
-          platforms: platformList,
-          description: description || null,
-          thumbnail_url: thumbnailUrl || null,
-        })
+        .update(updateRow)
+        .eq("id", id)
+        .select("id, event_date, platforms, description, thumbnail_url, completed_platforms")
+        .single();
+
+      if (!error) return res.status(200).json(data as CalendarEvent);
+
+      console.warn(
+        "calendar event update-select with completed_platforms failed, retrying without it (run supabase/migrations/0012_calendar_event_completion.sql):",
+        error.message
+      );
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("content_calendar_events")
+        .update(updateRow)
         .eq("id", id)
         .select("id, event_date, platforms, description, thumbnail_url")
         .single();
-
-      if (error) throw error;
-      return res.status(200).json(data as CalendarEvent);
+      if (fallbackError) throw fallbackError;
+      return res.status(200).json({ ...fallbackData, completed_platforms: [] } as CalendarEvent);
     } catch (error) {
       console.error("update calendar event failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";

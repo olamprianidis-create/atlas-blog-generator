@@ -7,9 +7,9 @@ import CalendarDayModal, {
 } from "../components/CalendarDayModal";
 import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
-const CHECKED_COLOR = "#5f7644";
-const PAST_UNCHECKED_COLOR = "#f2730b";
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+// Used for a platform-less event's single checkbox (no real platform tag).
+const GENERAL_PLATFORM_KEY = "general";
 
 function platformColorClass(value: string) {
   return PLATFORMS.find((p) => p.value === value)?.colorClass ?? "bg-slate-400";
@@ -88,8 +88,6 @@ function flattenVideoUploads(uploads: VideoUploadRow[]): VideoPlatformEntry[] {
   return entries;
 }
 
-const PUBLISHED_BLOG_POST_COLOR_CLASS = "bg-green-700";
-
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -152,7 +150,6 @@ export default function CalendarPage() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1); // 1-12
 
-  const [checkedDays, setCheckedDays] = useState<Set<string>>(new Set());
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [scheduledArticles, setScheduledArticles] = useState<ScheduledArticleRow[]>([]);
   const [videoUploads, setVideoUploads] = useState<VideoUploadRow[]>([]);
@@ -168,8 +165,8 @@ export default function CalendarPage() {
   useEffect(() => {
     // The grid always shows full weeks, so it leaks a few days from the
     // previous/next month at the edges — fetch those two months as well
-    // (not just the viewed one) so those leaking days' checked/event state
-    // is accurate instead of always appearing empty.
+    // (not just the viewed one) so those leaking days' event state is
+    // accurate instead of always appearing empty.
     const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
     const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
     const nextMonth = viewMonth === 12 ? 1 : viewMonth + 1;
@@ -179,10 +176,6 @@ export default function CalendarPage() {
       [prevYear, prevMonth],
       [nextYear, nextMonth],
     ];
-
-    Promise.all(months.map(([y, m]) => fetch(`/api/calendar/days?year=${y}&month=${m}`).then((res) => res.json())))
-      .then((results: string[][]) => setCheckedDays(new Set(results.flat())))
-      .catch((err) => console.error("Failed to load calendar days:", err));
 
     Promise.all(
       months.map(([y, m]) => fetch(`/api/calendar/events?year=${y}&month=${m}`).then((res) => res.json()))
@@ -236,30 +229,37 @@ export default function CalendarPage() {
     }
   }
 
-  async function toggleDay(dateStr: string, checked: boolean) {
-    setCheckedDays((current) => {
-      const next = new Set(current);
-      if (checked) next.add(dateStr);
-      else next.delete(dateStr);
-      return next;
-    });
+  function setEventPlatformCompleted(eventId: string, platform: string, completed: boolean) {
+    setEvents((current) =>
+      current.map((e) => {
+        if (e.id !== eventId) return e;
+        const existing = e.completed_platforms ?? [];
+        const next = completed
+          ? Array.from(new Set([...existing, platform]))
+          : existing.filter((p) => p !== platform);
+        return { ...e, completed_platforms: next };
+      })
+    );
+  }
 
+  // Manual platform events (Instagram/Pinterest/etc.) have no automated
+  // publish pipeline the way blog articles and YouTube/TikTok uploads do
+  // — there's no way to know automatically whether you actually posted,
+  // so these checkboxes stay manually toggled. Each targeted platform on
+  // an event gets its own independent checkbox (completed_platforms),
+  // not one shared checkbox for the whole event.
+  async function toggleEventPlatform(eventId: string, platform: string, completed: boolean) {
+    setEventPlatformCompleted(eventId, platform, completed);
     try {
-      const response = await fetch("/api/calendar/days", {
+      const res = await fetch(`/api/calendar/events/${eventId}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ day: dateStr, checked }),
+        body: JSON.stringify({ platform, completed }),
       });
-      if (!response.ok) throw new Error("Failed to save");
+      if (!res.ok) throw new Error("Failed to save");
     } catch (err) {
-      console.error("Failed to update calendar day:", err);
-      // Revert optimistic update on failure.
-      setCheckedDays((current) => {
-        const next = new Set(current);
-        if (checked) next.delete(dateStr);
-        else next.add(dateStr);
-        return next;
-      });
+      console.error("Failed to toggle event completion:", err);
+      setEventPlatformCompleted(eventId, platform, !completed);
     }
   }
 
@@ -282,14 +282,27 @@ export default function CalendarPage() {
     return videoPlatformEntries.filter((entry) => entry.dateStr === dateStr);
   }
 
-  function getChipsForDate(dateStr: string): { key: string; label: string; colorClass: string }[] {
-    const chips: { key: string; label: string; colorClass: string }[] = [];
+  interface Chip {
+    key: string;
+    label: string;
+    colorClass: string;
+    checked: boolean;
+    // Undefined = auto-tracked from real publish status (blog articles,
+    // YouTube/TikTok uploads) — shown as a checkbox but not clickable,
+    // since it should only ever reflect what actually happened. Present =
+    // manually toggleable (platform events with no automated pipeline).
+    onToggle?: () => void;
+  }
+
+  function getChipsForDate(dateStr: string): Chip[] {
+    const chips: Chip[] = [];
 
     for (const article of findArticlesForDate(dateStr)) {
       chips.push({
         key: `article-${article.id}`,
         label: article.title,
-        colorClass: article.status === "published" ? PUBLISHED_BLOG_POST_COLOR_CLASS : BLOG_POST_COLOR_CLASS,
+        colorClass: BLOG_POST_COLOR_CLASS,
+        checked: article.status === "published",
       });
     }
 
@@ -301,15 +314,20 @@ export default function CalendarPage() {
         key: video.key,
         label: `${video.title} (${platformLabel(video.platform)})`,
         colorClass: platformColorClass(video.platform),
+        checked: video.status === "published",
       });
     }
 
     for (const event of eventsForDate(dateStr)) {
+      const completed = event.completed_platforms ?? [];
       if (event.platforms.length === 0) {
         chips.push({
-          key: `event-${event.id}`,
+          key: `event-${event.id}-${GENERAL_PLATFORM_KEY}`,
           label: event.description || "Event",
           colorClass: "bg-slate-400",
+          checked: completed.includes(GENERAL_PLATFORM_KEY),
+          onToggle: () =>
+            toggleEventPlatform(event.id, GENERAL_PLATFORM_KEY, !completed.includes(GENERAL_PLATFORM_KEY)),
         });
         continue;
       }
@@ -318,6 +336,8 @@ export default function CalendarPage() {
           key: `event-${event.id}-${platform}`,
           label: event.description || platformLabel(platform),
           colorClass: platformColorClass(platform),
+          checked: completed.includes(platform),
+          onToggle: () => toggleEventPlatform(event.id, platform, !completed.includes(platform)),
         });
       }
     }
@@ -366,80 +386,77 @@ export default function CalendarPage() {
                 <div key={rowIndex} className="grid grid-cols-7 border-b border-slate-200 last:border-b-0">
                   {row.map((cell, colIndex) => {
                     const dateStr = toDateStr(cell.year, cell.month, cell.day);
-                    const isChecked = checkedDays.has(dateStr);
-                    const isPast = dateStr < today;
                     const isTodayCell = dateStr === today;
                     const chips = getChipsForDate(dateStr);
-
-                    const cellStyle = isChecked
-                      ? { backgroundColor: CHECKED_COLOR }
-                      : isPast
-                        ? { backgroundColor: PAST_UNCHECKED_COLOR }
-                        : undefined;
-                    const textTone = isChecked || isPast ? "text-white" : "text-slate-900";
-                    const dimmed = !cell.isCurrentMonth && !cellStyle;
+                    const dimmed = !cell.isCurrentMonth;
 
                     return (
-                      <button
+                      // A plain div (not a <button>) — chips below render
+                      // their own clickable checkboxes, and nesting
+                      // interactive controls inside a <button> is invalid
+                      // HTML that silently breaks click handling (the
+                      // same issue that made the Uploads page's video
+                      // preview swallow clicks earlier).
+                      <div
                         key={colIndex}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedDate(dateStr)}
-                        style={cellStyle}
-                        className={`relative flex h-56 flex-col gap-1 overflow-hidden border-r border-slate-100 p-2 pb-7 text-left transition-colors last:border-r-0 hover:brightness-95 ${
-                          cellStyle ? "" : dimmed ? "bg-slate-50" : "bg-white"
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedDate(dateStr);
+                          }
+                        }}
+                        className={`flex h-56 cursor-pointer flex-col gap-1 overflow-hidden border-r border-slate-100 p-2 text-left transition-colors last:border-r-0 hover:brightness-95 ${
+                          dimmed ? "bg-slate-50" : "bg-white"
                         }`}
                       >
                         <span
-                          className={`shrink-0 text-sm font-semibold ${dimmed ? "text-slate-400" : textTone} ${isTodayCell && !cellStyle ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
+                          className={`shrink-0 text-sm font-semibold ${dimmed ? "text-slate-400" : "text-slate-900"} ${isTodayCell ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
                         >
                           {cell.day}
                         </span>
 
                         <div className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto">
                           {chips.map((chip) => (
-                            <span
+                            <div
                               key={chip.key}
-                              className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
-                                cellStyle ? "ring-1 ring-white/40" : ""
-                              } ${dimmed ? "opacity-60" : ""}`}
+                              className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
+                                dimmed ? "opacity-60" : ""
+                              }`}
                             >
-                              {chip.label}
-                            </span>
+                              <button
+                                type="button"
+                                aria-label={chip.checked ? "Mark as not done" : "Mark as done"}
+                                aria-checked={chip.checked}
+                                role="checkbox"
+                                disabled={!chip.onToggle}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  chip.onToggle?.();
+                                }}
+                                className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-white/70 bg-white/10 ${
+                                  chip.onToggle ? "cursor-pointer hover:bg-white/30" : "cursor-default"
+                                }`}
+                              >
+                                {chip.checked && (
+                                  <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+                                    <path
+                                      d="m5 13 4 4 10-10"
+                                      stroke="white"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                )}
+                              </button>
+                              <span className="truncate">{chip.label}</span>
+                            </div>
                           ))}
                         </div>
-
-                        <span
-                          role="checkbox"
-                          aria-checked={isChecked}
-                          tabIndex={0}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void toggleDay(dateStr, !isChecked);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void toggleDay(dateStr, !isChecked);
-                            }
-                          }}
-                          className={`absolute bottom-2 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded border ${
-                            cellStyle ? "border-white/70" : "border-slate-300"
-                          }`}
-                        >
-                          {isChecked && (
-                            <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5">
-                              <path
-                                d="m5 13 4 4 10-10"
-                                stroke="white"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
-                        </span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -449,24 +466,8 @@ export default function CalendarPage() {
 
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded" style={{ backgroundColor: CHECKED_COLOR }} />
-              Checked
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded" style={{ backgroundColor: PAST_UNCHECKED_COLOR }} />
-              Missed
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded border border-slate-300 bg-white" />
-              Upcoming
-            </span>
-            <span className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded ${BLOG_POST_COLOR_CLASS}`} />
-              Blog post (scheduled)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className={`h-3 w-3 rounded ${PUBLISHED_BLOG_POST_COLOR_CLASS}`} />
-              Blog post (published)
+              Blog
             </span>
             {PLATFORMS.map((platform) => (
               <span key={platform.value} className="flex items-center gap-1.5">
