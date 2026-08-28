@@ -1,29 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { upload } from "@vercel/blob/client";
 import AppLayout from "../components/layout/AppLayout";
 import Spinner from "../components/Spinner";
-
-const YOUTUBE_CATEGORIES = [
-  { value: "22", label: "People & Blogs" },
-  { value: "27", label: "Education" },
-  { value: "26", label: "Howto & Style" },
-  { value: "24", label: "Entertainment" },
-  { value: "17", label: "Sports" },
-  { value: "29", label: "Nonprofits & Activism" },
-];
-
-const TIKTOK_PRIVACY_OPTIONS = [
-  { value: "PUBLIC_TO_EVERYONE", label: "Public" },
-  { value: "MUTUAL_FOLLOW_FRIENDS", label: "Friends" },
-  { value: "FOLLOWER_OF_CREATOR", label: "Followers" },
-  { value: "SELF_ONLY", label: "Only me" },
-];
+import { YOUTUBE_CATEGORIES, TIKTOK_PRIVACY_OPTIONS } from "../utils/uploadConstants";
 
 interface UploadRow {
   id: string;
   title: string;
   created_at: string;
+  video_url: string;
+  thumbnail_url: string | null;
   target_youtube: boolean;
   youtube_status: string;
   youtube_error: string | null;
@@ -32,6 +20,27 @@ interface UploadRow {
   tiktok_status: string;
   tiktok_error: string | null;
   publish_at: string | null;
+  published_at: string | null;
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// Whichever platform this row targets, is it fully done publishing yet?
+// Used to decide whether the card links to the edit page (still
+// changeable) or is just informational (already live everywhere it
+// was supposed to go).
+function isFullyPublished(u: UploadRow) {
+  const youtubeDone = !u.target_youtube || u.youtube_status === "published";
+  const tiktokDone = !u.target_tiktok || u.tiktok_status === "published";
+  return youtubeDone && tiktokDone;
 }
 
 const inputClass =
@@ -480,7 +489,7 @@ export default function UploadsPage() {
                     className={inputClass}
                   />
                   <p className="mt-1 text-xs text-slate-400">
-                    Scheduled uploads are saved here but aren&apos;t auto-published yet — publish manually when the time comes.
+                    Publishes automatically at this time — no need to come back and trigger it manually.
                   </p>
                 </div>
               )}
@@ -508,21 +517,58 @@ export default function UploadsPage() {
             {uploads.length === 0 ? (
               <p className="mt-2 text-sm text-slate-500">No uploads yet.</p>
             ) : (
-              <ul className="mt-2 flex flex-col gap-2">
-                {uploads.map((u) => (
-                  <li key={u.id} className={`${cardClass} flex items-center justify-between gap-3`}>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">{u.title}</p>
-                      <p className="text-xs text-slate-400">{new Date(u.created_at).toLocaleString()}</p>
-                      {u.youtube_error && <p className="mt-1 text-xs text-red-600">YouTube: {u.youtube_error}</p>}
-                      {u.tiktok_error && <p className="mt-1 text-xs text-red-600">TikTok: {u.tiktok_error}</p>}
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      {u.target_youtube && <StatusBadge status={u.youtube_status} />}
-                      {u.target_tiktok && <StatusBadge status={u.tiktok_status} />}
-                    </div>
-                  </li>
-                ))}
+              <ul className="mt-2 flex flex-col gap-3">
+                {uploads.map((u) => {
+                  const editable = !isFullyPublished(u);
+                  const dateLine = u.published_at
+                    ? `Published: ${formatDateTime(u.published_at)}`
+                    : u.publish_at
+                      ? `Scheduled: ${formatDateTime(u.publish_at)}`
+                      : `Uploaded: ${formatDateTime(u.created_at)}`;
+
+                  const content = (
+                    <>
+                      <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                        {u.thumbnail_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={u.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          // First frame of the video itself, since no custom
+                          // thumbnail was set — browsers render this as a
+                          // static image once metadata loads.
+                          // eslint-disable-next-line jsx-a11y/media-has-caption
+                          <video src={u.video_url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-900">{u.title}</p>
+                        <p className="mt-0.5 text-xs text-slate-400">{dateLine}</p>
+                        {u.youtube_error && <p className="mt-1 text-xs text-red-600">YouTube: {u.youtube_error}</p>}
+                        {u.tiktok_error && <p className="mt-1 text-xs text-red-600">TikTok: {u.tiktok_error}</p>}
+                        {editable && <p className="mt-1 text-xs font-medium text-blue-600">Click to edit</p>}
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {u.target_youtube && <StatusBadge status={u.youtube_status} />}
+                        {u.target_tiktok && <StatusBadge status={u.tiktok_status} />}
+                      </div>
+                    </>
+                  );
+
+                  return (
+                    <li key={u.id}>
+                      {editable ? (
+                        <Link
+                          href={`/uploads/${u.id}/edit`}
+                          className={`${cardClass} flex items-center gap-3 transition-colors hover:border-blue-300 hover:bg-blue-50/40`}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <div className={`${cardClass} flex items-center gap-3`}>{content}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
