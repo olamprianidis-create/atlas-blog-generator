@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import Link from "next/link";
 import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
@@ -47,12 +46,9 @@ function formatPublishDate(iso: string | null) {
 }
 
 export default function PublishedPage() {
-  const router = useRouter();
   const [articles, setArticles] = useState<PublishedArticleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [linkedinConnected, setLinkedinConnected] = useState<boolean | null>(null);
-  const [connectionBanner, setConnectionBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
 
   function loadArticles() {
@@ -66,31 +62,9 @@ export default function PublishedPage() {
       .finally(() => setIsLoading(false));
   }
 
-  function loadConnection() {
-    fetch("/api/platform-connections")
-      .then((res) => res.json())
-      .then((data) => setLinkedinConnected(!!data.linkedin))
-      .catch(() => setLinkedinConnected(false));
-  }
-
   useEffect(() => {
     loadArticles();
-    loadConnection();
   }, []);
-
-  useEffect(() => {
-    if (!router.isReady) return;
-    const { linkedin_connected, linkedin_error } = router.query;
-
-    if (linkedin_connected) setConnectionBanner({ type: "success", text: "LinkedIn connected." });
-    if (typeof linkedin_error === "string") setConnectionBanner({ type: "error", text: `LinkedIn: ${linkedin_error}` });
-
-    if (linkedin_connected || linkedin_error) {
-      loadConnection();
-      router.replace("/published", undefined, { shallow: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady]);
 
   async function shareToLinkedin(articleId: string) {
     setSharingId(articleId);
@@ -113,39 +87,6 @@ export default function PublishedPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Published</h1>
           <p className="mt-1 text-sm text-slate-500">
             Articles live on atlasnetwork.club. Click one to open it.
-          </p>
-
-          {connectionBanner && (
-            <div
-              className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-                connectionBanner.type === "success"
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : "border-red-200 bg-red-50 text-red-700"
-              }`}
-            >
-              {connectionBanner.text}
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-700 text-xs font-bold text-white">in</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-slate-900">LinkedIn</p>
-              <p className="text-xs text-slate-500">
-                {linkedinConnected === null ? "Checking…" : linkedinConnected ? "Connected" : "Not connected"}
-              </p>
-            </div>
-            {linkedinConnected === false && (
-              <a
-                href="/api/auth/linkedin/start"
-                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Connect
-              </a>
-            )}
-          </div>
-          <p className="mt-2 text-xs text-slate-400">
-            When connected, newly published articles are automatically shared as a link post on your LinkedIn profile.
           </p>
 
           {error && (

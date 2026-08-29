@@ -867,6 +867,7 @@ export default function Home() {
           publishError={publishError}
           isPublished={isPublished}
           onPublishNow={handlePublishNow}
+          articleId={scheduleResult?.articleId ?? editingArticleId}
           isEditingExisting={editingArticleId !== null}
           onDelete={handleDeleteArticle}
           isDeleting={isDeletingArticle}

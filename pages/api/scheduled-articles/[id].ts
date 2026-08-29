@@ -12,6 +12,9 @@ interface ScheduledArticleDetail {
   publish_date: string | null;
   image_url: string | null;
   author_user_id: string | null;
+  status: string;
+  linkedin_status: string;
+  linkedin_error: string | null;
 }
 
 export default async function handler(
@@ -30,7 +33,7 @@ export default async function handler(
       let { data, error } = await supabase
         .from("scheduled_articles")
         .select(
-          "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, author_user_id"
+          "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, author_user_id, status, linkedin_status, linkedin_error"
         )
         .eq("id", id)
         .single();
@@ -45,7 +48,9 @@ export default async function handler(
         );
         ({ data, error } = await supabase
           .from("scheduled_articles")
-          .select("id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url")
+          .select(
+            "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, status, linkedin_status, linkedin_error"
+          )
           .eq("id", id)
           .single());
       }
