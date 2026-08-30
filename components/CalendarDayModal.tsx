@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import PlatformPicker from "./PlatformPicker";
+import UploadForm from "./UploadForm";
 import { Platform, PLATFORMS } from "../utils/types";
 
 export interface ScheduledArticleForDay {
@@ -39,6 +40,7 @@ interface CalendarDayModalProps {
   onEventDeleted: (eventId: string) => void;
   onArticleDeleted: (articleId: string) => void;
   onVideoDeleted: (uploadId: string) => void;
+  onVideoUploaded: () => void;
 }
 
 function TrashButton({ onClick, label }: { onClick: (e: React.MouseEvent) => void; label: string }) {
@@ -296,8 +298,9 @@ export default function CalendarDayModal({
   onEventDeleted,
   onArticleDeleted,
   onVideoDeleted,
+  onVideoUploaded,
 }: CalendarDayModalProps) {
-  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [addMode, setAddMode] = useState<"menu" | "upload" | "note" | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [deletingArticleId, setDeletingArticleId] = useState<string | null>(null);
   const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
@@ -362,7 +365,7 @@ export default function CalendarDayModal({
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to save event");
     onEventCreated(result as CalendarEventItem);
-    setIsAddingEvent(false);
+    setAddMode(null);
   }
 
   async function handleUpdate(
@@ -575,25 +578,67 @@ export default function CalendarDayModal({
         )}
 
         <div className="mt-4">
-          {!isAddingEvent ? (
+          {addMode === null && (
             <button
               type="button"
-              onClick={() => setIsAddingEvent(true)}
-              aria-label="Add content calendar event"
+              onClick={() => setAddMode("menu")}
+              aria-label="Add to this day"
               className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
             >
               <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
-          ) : (
+          )}
+
+          {addMode === "menu" && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAddMode("upload")}
+                className="flex flex-1 flex-col items-center gap-1 rounded-lg border border-slate-200 px-4 py-3 text-center hover:border-blue-300 hover:bg-blue-50/40"
+              >
+                <span className="text-sm font-semibold text-slate-900">Upload</span>
+                <span className="text-xs text-slate-500">Post a video to YouTube / TikTok on this day</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode("note")}
+                className="flex flex-1 flex-col items-center gap-1 rounded-lg border border-slate-200 px-4 py-3 text-center hover:border-blue-300 hover:bg-blue-50/40"
+              >
+                <span className="text-sm font-semibold text-slate-900">Notes</span>
+                <span className="text-xs text-slate-500">A quick reminder that shows on this day</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode(null)}
+                aria-label="Cancel"
+                className="shrink-0 self-start rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {addMode === "upload" && (
+            <UploadForm
+              initialDateStr={dateStr}
+              onCancel={() => setAddMode(null)}
+              onSuccess={() => {
+                onVideoUploaded();
+                setAddMode(null);
+              }}
+            />
+          )}
+
+          {addMode === "note" && (
             <EventForm
               initialPlatforms={[]}
               initialDescription=""
               initialThumbnailUrl={null}
-              submitLabel="Add Event"
+              submitLabel="Add Note"
               savingLabel="Saving..."
-              onCancel={() => setIsAddingEvent(false)}
+              onCancel={() => setAddMode(null)}
               onSubmit={handleCreate}
             />
           )}

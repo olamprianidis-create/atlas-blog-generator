@@ -126,12 +126,12 @@ export async function postArticleToLinkedin(input: LinkedinPostInput): Promise<s
 
   if (error) throw error;
   if (!data?.access_token || !data.account_label) {
-    throw new Error("LinkedIn isn't connected. Connect it from the Published page first.");
+    throw new Error("LinkedIn isn't connected. Connect it from Step 5 of the generator first.");
   }
   if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
     // No refresh token by default (see the setup note above) — the admin
     // has to click "Connect" again rather than this refreshing silently.
-    throw new Error("LinkedIn's connection expired. Reconnect it from the Published page.");
+    throw new Error("LinkedIn's connection expired. Reconnect it from Step 5 of the generator.");
   }
 
   const response = await fetch(POSTS_URL, {

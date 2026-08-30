@@ -203,11 +203,15 @@ export default function CalendarPage() {
       })
       .catch((err) => console.error("Failed to load blog posts for calendar:", err));
 
+    loadVideoUploads();
+  }, []);
+
+  function loadVideoUploads() {
     fetch("/api/uploads")
       .then((res) => res.json())
       .then((data: { uploads: VideoUploadRow[] }) => setVideoUploads(data.uploads ?? []))
       .catch((err) => console.error("Failed to load video uploads for calendar:", err));
-  }, []);
+  }
 
   const videoPlatformEntries = useMemo(() => flattenVideoUploads(videoUploads), [videoUploads]);
 
@@ -495,6 +499,7 @@ export default function CalendarPage() {
             setScheduledArticles((current) => current.filter((a) => a.id !== articleId))
           }
           onVideoDeleted={(uploadId) => setVideoUploads((current) => current.filter((u) => u.id !== uploadId))}
+          onVideoUploaded={loadVideoUploads}
         />
       )}
     </AppLayout>
