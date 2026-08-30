@@ -2,6 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import PlatformPicker from "./PlatformPicker";
 import UploadForm from "./UploadForm";
+import NoteRichTextEditor from "./NoteRichTextEditor";
 import { Platform, PLATFORMS } from "../utils/types";
 
 export interface ScheduledArticleForDay {
@@ -192,20 +193,10 @@ function EventForm({
       </div>
 
       <div>
-        <label
-          htmlFor="event-description"
-          className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500"
-        >
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
           Description <span className="font-normal normal-case text-slate-400">(only shown when you open the note)</span>
-        </label>
-        <textarea
-          id="event-description"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          rows={3}
-          placeholder="What's the plan for this post?"
-          className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
+        </p>
+        <NoteRichTextEditor value={description} onChange={setDescription} placeholder="What's the plan for this post?" />
       </div>
 
       <div>
@@ -581,7 +572,10 @@ export default function CalendarDayModal({
                       </div>
                     )}
                     {event.description && (
-                      <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{event.description}</p>
+                      <div
+                        className="mt-1 whitespace-pre-wrap text-xs text-slate-600 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+                        dangerouslySetInnerHTML={{ __html: event.description }}
+                      />
                     )}
                   </div>
                   <span className="shrink-0 text-xs font-medium text-amber-700">Edit</span>

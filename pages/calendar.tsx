@@ -10,6 +10,11 @@ import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // Used for a platform-less event's single checkbox (no real platform tag).
 const GENERAL_PLATFORM_KEY = "general";
+// Post-it notes are always yellow, regardless of which platform(s)
+// they're tagged with — the header is the only thing shown on the grid;
+// tagged platforms show as small colored dots instead.
+const NOTE_COLOR_CLASS = "bg-amber-300";
+const NOTE_TEXT_CLASS = "text-amber-900";
 
 function platformColorClass(value: string) {
   return PLATFORMS.find((p) => p.value === value)?.colorClass ?? "bg-slate-400";
@@ -267,6 +272,16 @@ export default function CalendarPage() {
     }
   }
 
+  // Notes render as one square on the grid, not one per targeted
+  // platform — toggling it marks every targeted platform (or the
+  // general slot, if none are set) done/not-done together.
+  function toggleNoteCompleted(event: CalendarEventItem) {
+    const completed = event.completed_platforms ?? [];
+    const keys = event.platforms.length === 0 ? [GENERAL_PLATFORM_KEY] : event.platforms;
+    const allChecked = keys.every((k) => completed.includes(k));
+    keys.forEach((k) => toggleEventPlatform(event.id, k, !allChecked));
+  }
+
   function findArticlesForDate(dateStr: string): ScheduledArticleForDay[] {
     return scheduledArticles
       .filter((article) => article.publish_date && article.publish_date.slice(0, 10) === dateStr)
@@ -290,7 +305,6 @@ export default function CalendarPage() {
     key: string;
     label: string;
     colorClass: string;
-    textClass?: string;
     checked: boolean;
     // Undefined = auto-tracked from real publish status (blog articles,
     // YouTube/TikTok uploads) — shown as a checkbox but not clickable,
@@ -298,12 +312,6 @@ export default function CalendarPage() {
     // manually toggleable (platform events with no automated pipeline).
     onToggle?: () => void;
   }
-
-  // Post-it notes are always yellow on the main grid, regardless of which
-  // platform(s) they're tagged with — only their header shows here, the
-  // description only shows once the day is opened.
-  const NOTE_COLOR_CLASS = "bg-amber-300";
-  const NOTE_TEXT_CLASS = "text-amber-900";
 
   function getChipsForDate(dateStr: string): Chip[] {
     const chips: Chip[] = [];
@@ -329,34 +337,31 @@ export default function CalendarPage() {
       });
     }
 
-    for (const event of eventsForDate(dateStr)) {
-      const completed = event.completed_platforms ?? [];
-      const label = event.title || "Note";
-      if (event.platforms.length === 0) {
-        chips.push({
-          key: `event-${event.id}-${GENERAL_PLATFORM_KEY}`,
-          label,
-          colorClass: NOTE_COLOR_CLASS,
-          textClass: NOTE_TEXT_CLASS,
-          checked: completed.includes(GENERAL_PLATFORM_KEY),
-          onToggle: () =>
-            toggleEventPlatform(event.id, GENERAL_PLATFORM_KEY, !completed.includes(GENERAL_PLATFORM_KEY)),
-        });
-        continue;
-      }
-      for (const platform of event.platforms) {
-        chips.push({
-          key: `event-${event.id}-${platform}`,
-          label,
-          colorClass: NOTE_COLOR_CLASS,
-          textClass: NOTE_TEXT_CLASS,
-          checked: completed.includes(platform),
-          onToggle: () => toggleEventPlatform(event.id, platform, !completed.includes(platform)),
-        });
-      }
-    }
-
     return chips;
+  }
+
+  interface NoteChip {
+    key: string;
+    label: string;
+    checked: boolean;
+    onToggle: () => void;
+    // One dot per targeted platform, in that platform's real color — the
+    // note square itself always stays yellow regardless of what it's
+    // tagged with.
+    platformDots: string[];
+  }
+
+  function getNotesForDate(dateStr: string): NoteChip[] {
+    return eventsForDate(dateStr).map((event) => ({
+      key: event.id,
+      label: event.title || "Note",
+      checked:
+        event.platforms.length === 0
+          ? (event.completed_platforms ?? []).includes(GENERAL_PLATFORM_KEY)
+          : event.platforms.every((p) => (event.completed_platforms ?? []).includes(p)),
+      onToggle: () => toggleNoteCompleted(event),
+      platformDots: event.platforms.map((p) => platformColorClass(p)),
+    }));
   }
 
   return (
@@ -402,6 +407,7 @@ export default function CalendarPage() {
                     const dateStr = toDateStr(cell.year, cell.month, cell.day);
                     const isTodayCell = dateStr === today;
                     const chips = getChipsForDate(dateStr);
+                    const notes = getNotesForDate(dateStr);
                     const dimmed = !cell.isCurrentMonth;
 
                     return (
@@ -436,7 +442,7 @@ export default function CalendarPage() {
                           {chips.map((chip) => (
                             <div
                               key={chip.key}
-                              className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight ${chip.textClass ?? "text-white"} ${chip.colorClass} ${
+                              className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
                                 dimmed ? "opacity-60" : ""
                               }`}
                             >
@@ -450,17 +456,15 @@ export default function CalendarPage() {
                                   event.stopPropagation();
                                   chip.onToggle?.();
                                 }}
-                                className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border ${
-                                  chip.textClass
-                                    ? "border-amber-900/50 bg-amber-900/10"
-                                    : "border-white/70 bg-white/10"
-                                } ${chip.onToggle ? "cursor-pointer hover:bg-black/10" : "cursor-default"}`}
+                                className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-white/70 bg-white/10 ${
+                                  chip.onToggle ? "cursor-pointer hover:bg-white/30" : "cursor-default"
+                                }`}
                               >
                                 {chip.checked && (
                                   <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
                                     <path
                                       d="m5 13 4 4 10-10"
-                                      stroke={chip.textClass ? "currentColor" : "white"}
+                                      stroke="white"
                                       strokeWidth="3"
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
@@ -472,6 +476,54 @@ export default function CalendarPage() {
                             </div>
                           ))}
                         </div>
+
+                        {notes.length > 0 && (
+                          <div className={`mt-auto flex shrink-0 flex-wrap justify-end gap-1 ${dimmed ? "opacity-60" : ""}`}>
+                            {notes.map((note) => (
+                              <div
+                                key={note.key}
+                                title={note.label}
+                                className={`flex aspect-square w-14 shrink-0 flex-col items-center justify-between rounded-md p-1 shadow-sm ${NOTE_COLOR_CLASS} ${NOTE_TEXT_CLASS}`}
+                              >
+                                <div className="flex w-full items-start justify-between gap-0.5">
+                                  <span className="line-clamp-3 text-left text-[9px] font-semibold leading-tight">
+                                    {note.label}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label={note.checked ? "Mark note as not done" : "Mark note as done"}
+                                    aria-checked={note.checked}
+                                    role="checkbox"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      note.onToggle();
+                                    }}
+                                    className="flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-amber-900/50 bg-amber-900/10 hover:bg-amber-900/20"
+                                  >
+                                    {note.checked && (
+                                      <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+                                        <path
+                                          d="m5 13 4 4 10-10"
+                                          stroke="currentColor"
+                                          strokeWidth="3"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    )}
+                                  </button>
+                                </div>
+                                {note.platformDots.length > 0 && (
+                                  <div className="flex w-full flex-wrap justify-center gap-0.5">
+                                    {note.platformDots.map((dotColor, i) => (
+                                      <span key={i} className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
