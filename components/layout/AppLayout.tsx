@@ -18,6 +18,10 @@ export default function AppLayout({
           <Link href="/privacy" className="hover:text-slate-600 hover:underline">
             Privacy Policy
           </Link>
+          <span className="mx-2">·</span>
+          <Link href="/terms" className="hover:text-slate-600 hover:underline">
+            Terms of Service
+          </Link>
         </footer>
       </div>
     </div>
