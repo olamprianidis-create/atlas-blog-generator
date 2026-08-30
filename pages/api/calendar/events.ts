@@ -9,9 +9,24 @@ interface CalendarEvent {
   id: string;
   event_date: string;
   platforms: string[];
+  title: string | null;
   description: string | null;
   thumbnail_url: string | null;
   completed_platforms: string[];
+}
+
+// title (0013) and completed_platforms (0012) are both optional columns
+// added after the table's original shape — try the full select first and
+// degrade a column at a time if a migration hasn't been run yet, rather
+// than failing the whole request over one missing column.
+const SELECT_CANDIDATES = [
+  "id, event_date, platforms, title, description, thumbnail_url, completed_platforms",
+  "id, event_date, platforms, description, thumbnail_url, completed_platforms",
+  "id, event_date, platforms, description, thumbnail_url",
+];
+
+function fillDefaults(row: object): CalendarEvent {
+  return { title: null, completed_platforms: [], ...row } as unknown as CalendarEvent;
 }
 
 export default async function handler(
@@ -36,27 +51,17 @@ export default async function handler(
       return query.gte("event_date", start).lt("event_date", end);
     }
 
-    const full = baseQuery("id, event_date, platforms, description, thumbnail_url, completed_platforms");
-    if (!full) return res.status(400).json({ error: "Missing or invalid year/month" });
-
     try {
-      const { data, error } = await full.order("event_date", { ascending: true });
-      if (!error) return res.status(200).json((data ?? []) as unknown as CalendarEvent[]);
-
-      // completed_platforms is an optional column (0012_calendar_event_
-      // completion.sql) — degrade gracefully to the event list without
-      // checkbox state if that migration hasn't been run yet, rather than
-      // failing the whole calendar over one missing column.
-      console.warn(
-        "calendar events select with completed_platforms failed, retrying without it (run supabase/migrations/0012_calendar_event_completion.sql):",
-        error.message
-      );
-      const fallback = baseQuery("id, event_date, platforms, description, thumbnail_url");
-      const { data: fallbackData, error: fallbackError } = await fallback!.order("event_date", { ascending: true });
-      if (fallbackError) throw fallbackError;
-
-      const items = (fallbackData ?? []).map((row) => ({ ...(row as object), completed_platforms: [] }));
-      return res.status(200).json(items as unknown as CalendarEvent[]);
+      let lastError: Error | null = null;
+      for (const columns of SELECT_CANDIDATES) {
+        const query = baseQuery(columns);
+        if (!query) return res.status(400).json({ error: "Missing or invalid year/month" });
+        const { data, error } = await query.order("event_date", { ascending: true });
+        if (!error) return res.status(200).json((data ?? []).map(fillDefaults));
+        lastError = error;
+        console.warn(`calendar events select (${columns}) failed, trying a smaller column set:`, error.message);
+      }
+      throw lastError;
     } catch (error) {
       console.error("list calendar events failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -65,9 +70,10 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const { eventDate, platforms, description, thumbnailUrl } = req.body as {
+    const { eventDate, platforms, title, description, thumbnailUrl } = req.body as {
       eventDate?: unknown;
       platforms?: unknown;
+      title?: unknown;
       description?: unknown;
       thumbnailUrl?: unknown;
     };
@@ -79,6 +85,9 @@ export default async function handler(
     if (!platformList.every((p) => typeof p === "string" && VALID_PLATFORMS.has(p as never))) {
       return res.status(400).json({ error: "Invalid platforms" });
     }
+    if (title !== undefined && title !== null && typeof title !== "string") {
+      return res.status(400).json({ error: "Invalid title" });
+    }
     if (description !== undefined && description !== null && typeof description !== "string") {
       return res.status(400).json({ error: "Invalid description" });
     }
@@ -86,33 +95,24 @@ export default async function handler(
       return res.status(400).json({ error: "Invalid thumbnailUrl" });
     }
 
+    const insertRow = {
+      event_date: eventDate,
+      platforms: platformList,
+      title: title || null,
+      description: description || null,
+      thumbnail_url: thumbnailUrl || null,
+    };
+
     try {
-      const insertRow = {
-        event_date: eventDate,
-        platforms: platformList,
-        description: description || null,
-        thumbnail_url: thumbnailUrl || null,
-      };
-
-      const { data, error } = await supabase
-        .from("content_calendar_events")
-        .insert(insertRow)
-        .select("id, event_date, platforms, description, thumbnail_url, completed_platforms")
-        .single();
-
-      if (!error) return res.status(200).json(data as CalendarEvent);
-
-      console.warn(
-        "calendar event insert-select with completed_platforms failed, retrying without it (run supabase/migrations/0012_calendar_event_completion.sql):",
-        error.message
-      );
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from("content_calendar_events")
-        .insert(insertRow)
-        .select("id, event_date, platforms, description, thumbnail_url")
-        .single();
-      if (fallbackError) throw fallbackError;
-      return res.status(200).json({ ...fallbackData, completed_platforms: [] } as CalendarEvent);
+      let lastError: Error | null = null;
+      for (const columns of SELECT_CANDIDATES) {
+        const row: Record<string, unknown> = columns.includes("title") ? insertRow : { ...insertRow, title: undefined };
+        const { data, error } = await supabase.from("content_calendar_events").insert(row).select(columns).single();
+        if (!error) return res.status(200).json(fillDefaults(data));
+        lastError = error;
+        console.warn(`calendar event insert-select (${columns}) failed, trying a smaller column set:`, error.message);
+      }
+      throw lastError;
     } catch (error) {
       console.error("create calendar event failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";

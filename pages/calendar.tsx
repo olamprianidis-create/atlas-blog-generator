@@ -290,6 +290,7 @@ export default function CalendarPage() {
     key: string;
     label: string;
     colorClass: string;
+    textClass?: string;
     checked: boolean;
     // Undefined = auto-tracked from real publish status (blog articles,
     // YouTube/TikTok uploads) — shown as a checkbox but not clickable,
@@ -297,6 +298,12 @@ export default function CalendarPage() {
     // manually toggleable (platform events with no automated pipeline).
     onToggle?: () => void;
   }
+
+  // Post-it notes are always yellow on the main grid, regardless of which
+  // platform(s) they're tagged with — only their header shows here, the
+  // description only shows once the day is opened.
+  const NOTE_COLOR_CLASS = "bg-amber-300";
+  const NOTE_TEXT_CLASS = "text-amber-900";
 
   function getChipsForDate(dateStr: string): Chip[] {
     const chips: Chip[] = [];
@@ -324,11 +331,13 @@ export default function CalendarPage() {
 
     for (const event of eventsForDate(dateStr)) {
       const completed = event.completed_platforms ?? [];
+      const label = event.title || "Note";
       if (event.platforms.length === 0) {
         chips.push({
           key: `event-${event.id}-${GENERAL_PLATFORM_KEY}`,
-          label: event.description || "Event",
-          colorClass: "bg-slate-400",
+          label,
+          colorClass: NOTE_COLOR_CLASS,
+          textClass: NOTE_TEXT_CLASS,
           checked: completed.includes(GENERAL_PLATFORM_KEY),
           onToggle: () =>
             toggleEventPlatform(event.id, GENERAL_PLATFORM_KEY, !completed.includes(GENERAL_PLATFORM_KEY)),
@@ -338,8 +347,9 @@ export default function CalendarPage() {
       for (const platform of event.platforms) {
         chips.push({
           key: `event-${event.id}-${platform}`,
-          label: event.description || platformLabel(platform),
-          colorClass: platformColorClass(platform),
+          label,
+          colorClass: NOTE_COLOR_CLASS,
+          textClass: NOTE_TEXT_CLASS,
           checked: completed.includes(platform),
           onToggle: () => toggleEventPlatform(event.id, platform, !completed.includes(platform)),
         });
@@ -426,7 +436,7 @@ export default function CalendarPage() {
                           {chips.map((chip) => (
                             <div
                               key={chip.key}
-                              className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
+                              className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight ${chip.textClass ?? "text-white"} ${chip.colorClass} ${
                                 dimmed ? "opacity-60" : ""
                               }`}
                             >
@@ -440,15 +450,17 @@ export default function CalendarPage() {
                                   event.stopPropagation();
                                   chip.onToggle?.();
                                 }}
-                                className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border border-white/70 bg-white/10 ${
-                                  chip.onToggle ? "cursor-pointer hover:bg-white/30" : "cursor-default"
-                                }`}
+                                className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-sm border ${
+                                  chip.textClass
+                                    ? "border-amber-900/50 bg-amber-900/10"
+                                    : "border-white/70 bg-white/10"
+                                } ${chip.onToggle ? "cursor-pointer hover:bg-black/10" : "cursor-default"}`}
                               >
                                 {chip.checked && (
                                   <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
                                     <path
                                       d="m5 13 4 4 10-10"
-                                      stroke="white"
+                                      stroke={chip.textClass ? "currentColor" : "white"}
                                       strokeWidth="3"
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
@@ -479,6 +491,10 @@ export default function CalendarPage() {
                 {platform.label}
               </span>
             ))}
+            <span className="flex items-center gap-1.5">
+              <span className={`h-3 w-3 rounded ${NOTE_COLOR_CLASS}`} />
+              Notes
+            </span>
           </div>
         </div>
       </main>

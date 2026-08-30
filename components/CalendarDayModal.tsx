@@ -15,6 +15,7 @@ export interface CalendarEventItem {
   id: string;
   event_date: string;
   platforms: string[];
+  title: string | null;
   description: string | null;
   thumbnail_url: string | null;
   completed_platforms: string[];
@@ -84,19 +85,21 @@ function platformColorClass(value: string) {
 }
 
 interface EventFormProps {
+  initialTitle: string;
   initialPlatforms: Platform[];
   initialDescription: string;
   initialThumbnailUrl: string | null;
   submitLabel: string;
   savingLabel: string;
   onCancel: () => void;
-  onSubmit: (data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }) => Promise<void>;
+  onSubmit: (data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }) => Promise<void>;
   onDelete?: () => Promise<void>;
   deleteLabel?: string;
   deletingLabel?: string;
 }
 
 function EventForm({
+  initialTitle,
   initialPlatforms,
   initialDescription,
   initialThumbnailUrl,
@@ -108,6 +111,7 @@ function EventForm({
   deleteLabel = "Delete",
   deletingLabel = "Deleting...",
 }: EventFormProps) {
+  const [title, setTitle] = useState(initialTitle);
   const [platforms, setPlatforms] = useState<Platform[]>(initialPlatforms);
   const [description, setDescription] = useState(initialDescription);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(initialThumbnailUrl);
@@ -136,10 +140,14 @@ function EventForm({
   }
 
   async function handleSubmit() {
+    if (!title.trim()) {
+      setError("Give this note a header first.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
-      await onSubmit({ platforms, description, thumbnailUrl });
+      await onSubmit({ title: title.trim(), platforms, description, thumbnailUrl });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save event");
     } finally {
@@ -162,7 +170,20 @@ function EventForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
+    <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <div>
+        <label htmlFor="event-title" className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">
+          Header <span className="font-normal normal-case text-slate-400">(shown on the main calendar)</span>
+        </label>
+        <input
+          id="event-title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="e.g. Draft Instagram caption"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
           Platform <span className="font-normal normal-case text-slate-400">(optional)</span>
@@ -175,7 +196,7 @@ function EventForm({
           htmlFor="event-description"
           className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500"
         >
-          Description <span className="font-normal normal-case text-slate-400">(optional)</span>
+          Description <span className="font-normal normal-case text-slate-400">(only shown when you open the note)</span>
         </label>
         <textarea
           id="event-description"
@@ -351,13 +372,14 @@ export default function CalendarDayModal({
     }
   }
 
-  async function handleCreate(data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }) {
+  async function handleCreate(data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }) {
     const response = await fetch("/api/calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventDate: dateStr,
         platforms: data.platforms,
+        title: data.title,
         description: data.description.trim() || undefined,
         thumbnailUrl: data.thumbnailUrl || undefined,
       }),
@@ -370,13 +392,14 @@ export default function CalendarDayModal({
 
   async function handleUpdate(
     eventId: string,
-    data: { platforms: Platform[]; description: string; thumbnailUrl: string | null }
+    data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }
   ) {
     const response = await fetch(`/api/calendar/events/${eventId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         platforms: data.platforms,
+        title: data.title,
         description: data.description.trim() || undefined,
         thumbnailUrl: data.thumbnailUrl || undefined,
       }),
@@ -507,6 +530,7 @@ export default function CalendarDayModal({
               editingEventId === event.id ? (
                 <EventForm
                   key={event.id}
+                  initialTitle={event.title ?? ""}
                   initialPlatforms={event.platforms as Platform[]}
                   initialDescription={event.description ?? ""}
                   initialThumbnailUrl={event.thumbnail_url}
@@ -532,16 +556,17 @@ export default function CalendarDayModal({
                       setEditingEventId(event.id);
                     }
                   }}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left transition-colors hover:border-amber-300 hover:bg-amber-100"
                 >
                   {event.thumbnail_url ? (
                     <img src={event.thumbnail_url} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" />
                   ) : (
-                    <div className="h-10 w-10 shrink-0 rounded-md bg-slate-100" />
+                    <div className="h-10 w-10 shrink-0 rounded-md bg-amber-200" />
                   )}
                   <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-900">{event.title || "Untitled note"}</p>
                     {event.platforms.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="mt-1 flex flex-wrap gap-1">
                         {event.platforms.map((p) => {
                           const meta = platformMeta(p);
                           return (
@@ -556,18 +581,15 @@ export default function CalendarDayModal({
                       </div>
                     )}
                     {event.description && (
-                      <p className="mt-1 truncate text-xs text-slate-600">{event.description}</p>
-                    )}
-                    {!event.description && event.platforms.length === 0 && (
-                      <p className="mt-1 text-xs text-slate-400">Untitled event</p>
+                      <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{event.description}</p>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs font-medium text-slate-400">Edit</span>
+                  <span className="shrink-0 text-xs font-medium text-amber-700">Edit</span>
                   <TrashButton
-                    label="Delete event"
+                    label="Delete note"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!window.confirm("Delete this event? This can't be undone.")) return;
+                      if (!window.confirm("Delete this note? This can't be undone.")) return;
                       void handleDelete(event.id);
                     }}
                   />
@@ -633,6 +655,7 @@ export default function CalendarDayModal({
 
           {addMode === "note" && (
             <EventForm
+              initialTitle=""
               initialPlatforms={[]}
               initialDescription=""
               initialThumbnailUrl={null}
