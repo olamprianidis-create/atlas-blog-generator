@@ -15,6 +15,7 @@ interface ScheduledArticleRow {
   status: string;
   title: string;
   meta_description: string | null;
+  linkedin_auto_share: boolean;
 }
 
 // Shared by both pages/api/publish-article.ts (manual/single trigger,
@@ -31,11 +32,29 @@ interface ScheduledArticleRow {
 export async function publishArticleById(articleId: string): Promise<PublishResult> {
   const supabase = getServiceClient();
 
-  const { data: article, error: fetchError } = await supabase
+  let { data: article, error: fetchError } = await supabase
     .from("scheduled_articles")
-    .select("id, status, title, meta_description")
+    .select("id, status, title, meta_description, linkedin_auto_share")
     .eq("id", articleId)
     .single<ScheduledArticleRow>();
+
+  if (fetchError) {
+    // linkedin_auto_share is an optional column (0015_linkedin_auto_share.sql)
+    // — degrade gracefully to publishing without the toggle (defaulting to
+    // sharing, the same behavior every article had before this migration)
+    // if it hasn't been run yet.
+    console.warn(
+      "scheduled_articles select with linkedin_auto_share failed, retrying without it (run supabase/migrations/0015_linkedin_auto_share.sql):",
+      fetchError.message
+    );
+    const fallback = await supabase
+      .from("scheduled_articles")
+      .select("id, status, title, meta_description")
+      .eq("id", articleId)
+      .single();
+    article = fallback.data ? ({ ...fallback.data, linkedin_auto_share: true } as ScheduledArticleRow) : null;
+    fetchError = fallback.error;
+  }
 
   if (fetchError || !article) {
     const message = fetchError?.message ?? "Article not found";
@@ -67,26 +86,31 @@ export async function publishArticleById(articleId: string): Promise<PublishResu
   // the article row, it never fails the publish itself (which already
   // succeeded above). Covers both the "Publish Now" button and the
   // scheduled-article cron path, since both call this same function.
-  try {
-    const urn = await postArticleToLinkedin({
-      title: article.title,
-      summary: article.meta_description ?? undefined,
-      articleUrl: buildArticleUrl(article.title),
-    });
-    await supabase
-      .from("scheduled_articles")
-      .update({
-        linkedin_status: "posted",
-        linkedin_post_urn: urn,
-        linkedin_error: null,
-        linkedin_posted_at: new Date().toISOString(),
-      })
-      .eq("id", articleId);
-  } catch (linkedinError) {
-    const message = linkedinError instanceof Error ? linkedinError.message : "Unknown error";
-    const status = message.includes("isn't connected") || message.includes("connection expired") ? "not_connected" : "failed";
-    await supabase.from("scheduled_articles").update({ linkedin_status: status, linkedin_error: message }).eq("id", articleId);
-    console.error("linkedin auto-post failed:", linkedinError);
+  // Gated on the per-article linkedin_auto_share toggle (Step 5) — off
+  // just leaves linkedin_status at its "not_posted" default, same as an
+  // article that hasn't published yet.
+  if (article.linkedin_auto_share) {
+    try {
+      const urn = await postArticleToLinkedin({
+        title: article.title,
+        summary: article.meta_description ?? undefined,
+        articleUrl: buildArticleUrl(article.title),
+      });
+      await supabase
+        .from("scheduled_articles")
+        .update({
+          linkedin_status: "posted",
+          linkedin_post_urn: urn,
+          linkedin_error: null,
+          linkedin_posted_at: new Date().toISOString(),
+        })
+        .eq("id", articleId);
+    } catch (linkedinError) {
+      const message = linkedinError instanceof Error ? linkedinError.message : "Unknown error";
+      const status = message.includes("isn't connected") || message.includes("connection expired") ? "not_connected" : "failed";
+      await supabase.from("scheduled_articles").update({ linkedin_status: status, linkedin_error: message }).eq("id", articleId);
+      console.error("linkedin auto-post failed:", linkedinError);
+    }
   }
 
   try {

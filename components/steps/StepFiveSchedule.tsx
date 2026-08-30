@@ -77,6 +77,8 @@ function LinkedInSection({ articleId, isPublished }: { articleId: string | null;
   const [linkedinStatus, setLinkedinStatus] = useState<string | null>(null);
   const [linkedinError, setLinkedinError] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [autoShare, setAutoShare] = useState(true);
+  const [isTogglingAutoShare, setIsTogglingAutoShare] = useState(false);
 
   function loadConnection() {
     fetch("/api/platform-connections")
@@ -93,8 +95,27 @@ function LinkedInSection({ articleId, isPublished }: { articleId: string | null;
         setArticleStatus(data.status ?? null);
         setLinkedinStatus(data.linkedin_status ?? null);
         setLinkedinError(data.linkedin_error ?? null);
+        setAutoShare(data.linkedin_auto_share ?? true);
       })
       .catch(() => {});
+  }
+
+  async function toggleAutoShare(next: boolean) {
+    if (!articleId) return;
+    setAutoShare(next);
+    setIsTogglingAutoShare(true);
+    try {
+      const res = await fetch(`/api/scheduled-articles/${articleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkedinAutoShare: next }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    } catch {
+      setAutoShare(!next);
+    } finally {
+      setIsTogglingAutoShare(false);
+    }
   }
 
   useEffect(() => {
@@ -156,55 +177,70 @@ function LinkedInSection({ articleId, isPublished }: { articleId: string | null;
         </div>
       )}
 
-      <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-700 text-xs font-bold text-white">
-          in
-        </span>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-slate-900">LinkedIn</p>
-          <p className="text-xs text-slate-500">
-            {connected === null ? "Checking…" : connected ? "Connected" : "Not connected"}
-          </p>
-        </div>
-        {connected === false && (
-          <a
-            href="/api/auth/linkedin/start"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Connect
-          </a>
-        )}
-        {connected && articleId && (
-          <div className="flex shrink-0 items-center gap-2">
-            {linkedinStatus && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  LINKEDIN_STATUS_STYLES[linkedinStatus] ?? "bg-slate-100 text-slate-500"
-                }`}
-              >
-                {LINKEDIN_STATUS_LABELS[linkedinStatus] ?? linkedinStatus}
-              </span>
-            )}
-            {articleStatus === "published" && linkedinStatus !== "posted" && (
-              <button
-                type="button"
-                onClick={shareToLinkedin}
-                disabled={isSharing}
-                className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
-              >
-                {isSharing ? "Sharing…" : "Share to LinkedIn"}
-              </button>
-            )}
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-700 text-xs font-bold text-white">
+            in
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-slate-900">LinkedIn</p>
+            <p className="text-xs text-slate-500">
+              {connected === null ? "Checking…" : connected ? "Connected" : "Not connected"}
+            </p>
           </div>
+          {connected === false && (
+            <a
+              href="/api/auth/linkedin/start"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Connect
+            </a>
+          )}
+          {connected && articleId && (
+            <div className="flex shrink-0 items-center gap-2">
+              {linkedinStatus && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    LINKEDIN_STATUS_STYLES[linkedinStatus] ?? "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {LINKEDIN_STATUS_LABELS[linkedinStatus] ?? linkedinStatus}
+                </span>
+              )}
+              {articleStatus === "published" && linkedinStatus !== "posted" && (
+                <button
+                  type="button"
+                  onClick={shareToLinkedin}
+                  disabled={isSharing}
+                  className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
+                >
+                  {isSharing ? "Sharing…" : "Share to LinkedIn"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {connected && articleId && (
+          <label className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+            <input
+              type="checkbox"
+              checked={autoShare}
+              disabled={isTogglingAutoShare}
+              onChange={(event) => toggleAutoShare(event.target.checked)}
+            />
+            <span className="text-xs font-medium text-slate-700">Auto-share this article to LinkedIn on publish</span>
+          </label>
         )}
       </div>
 
       {connected && articleId && articleStatus !== "published" && (
         <p className="mt-2 text-xs text-slate-400">
-          This will share automatically to LinkedIn the moment it publishes — whether that&apos;s the scheduled
-          time (via the cron job) or Publish Now above. The manual button here is only for a retry afterward.
+          {autoShare
+            ? "This will share automatically to LinkedIn the moment it publishes — whether that's the scheduled time (via the cron job) or Publish Now above. Uncheck the box above to skip this one."
+            : "Auto-share is off for this article — it won't post to LinkedIn when it publishes. Check the box above to turn it back on."}
         </p>
       )}
       {(!connected || !articleId) && (

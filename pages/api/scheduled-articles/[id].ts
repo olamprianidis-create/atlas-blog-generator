@@ -15,6 +15,7 @@ interface ScheduledArticleDetail {
   status: string;
   linkedin_status: string;
   linkedin_error: string | null;
+  linkedin_auto_share: boolean;
 }
 
 export default async function handler(
@@ -33,17 +34,17 @@ export default async function handler(
       let { data, error } = await supabase
         .from("scheduled_articles")
         .select(
-          "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, author_user_id, status, linkedin_status, linkedin_error"
+          "id, title, content_markdown, content_html, keywords, meta_description, category, publish_date, image_url, author_user_id, status, linkedin_status, linkedin_error, linkedin_auto_share"
         )
         .eq("id", id)
         .single();
 
       if (error) {
-        // author_user_id is an optional column (see
-        // supabase/migrations/0009_article_author.sql) — degrade
-        // gracefully if that migration hasn't been run yet.
+        // author_user_id (0009) and linkedin_auto_share (0015) are both
+        // optional columns — degrade gracefully if those migrations
+        // haven't been run yet.
         console.warn(
-          "get scheduled article with author_user_id failed, retrying without it (run supabase/migrations/0009_article_author.sql):",
+          "get scheduled article with author_user_id/linkedin_auto_share failed, retrying without them (run supabase/migrations/0009_article_author.sql and 0015_linkedin_auto_share.sql):",
           error.message
         );
         ({ data, error } = await supabase
@@ -55,14 +56,35 @@ export default async function handler(
           .single());
       }
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       if (!data) return res.status(404).json({ error: "Article not found" });
 
-      return res.status(200).json(data as ScheduledArticleDetail);
+      const result = { ...data } as ScheduledArticleDetail;
+      if (result.linkedin_auto_share === undefined) result.linkedin_auto_share = true;
+      return res.status(200).json(result);
     } catch (error) {
       console.error("get scheduled article failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";
       return res.status(502).json({ error: `Failed to load article: ${message}` });
+    }
+  }
+
+  if (req.method === "PATCH") {
+    const { linkedinAutoShare } = req.body as { linkedinAutoShare?: unknown };
+    if (typeof linkedinAutoShare !== "boolean") {
+      return res.status(400).json({ error: "Missing or invalid linkedinAutoShare" });
+    }
+    try {
+      const { error } = await supabase
+        .from("scheduled_articles")
+        .update({ linkedin_auto_share: linkedinAutoShare })
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+      return res.status(200).json({});
+    } catch (error) {
+      console.error("update linkedin_auto_share failed:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return res.status(502).json({ error: `Failed to update article: ${message}` });
     }
   }
 
@@ -71,7 +93,7 @@ export default async function handler(
       await supabase.from("article_history").delete().eq("article_id", id);
 
       const { error } = await supabase.from("scheduled_articles").delete().eq("id", id);
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
       return res.status(200).json({});
     } catch (error) {
@@ -81,6 +103,6 @@ export default async function handler(
     }
   }
 
-  res.setHeader("Allow", "GET, DELETE");
+  res.setHeader("Allow", "GET, PATCH, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
