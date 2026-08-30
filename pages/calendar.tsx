@@ -478,15 +478,15 @@ export default function CalendarPage() {
                         </div>
 
                         {notes.length > 0 && (
-                          <div className={`mt-auto flex shrink-0 flex-wrap justify-end gap-1 ${dimmed ? "opacity-60" : ""}`}>
+                          <div className={`mt-auto flex shrink-0 flex-col gap-1 ${dimmed ? "opacity-60" : ""}`}>
                             {notes.map((note) => (
                               <div
                                 key={note.key}
                                 title={note.label}
-                                className={`flex aspect-square w-14 shrink-0 flex-col items-center justify-between rounded-md p-1 shadow-sm ${NOTE_COLOR_CLASS} ${NOTE_TEXT_CLASS}`}
+                                className={`flex h-16 w-full shrink-0 flex-col justify-between rounded-md p-1.5 shadow-sm ${NOTE_COLOR_CLASS} ${NOTE_TEXT_CLASS}`}
                               >
-                                <div className="flex w-full items-start justify-between gap-0.5">
-                                  <span className="line-clamp-3 text-left text-[9px] font-semibold leading-tight">
+                                <div className="flex w-full items-start justify-between gap-1">
+                                  <span className="line-clamp-2 text-left text-[10px] font-semibold leading-tight">
                                     {note.label}
                                   </span>
                                   <button
@@ -514,7 +514,7 @@ export default function CalendarPage() {
                                   </button>
                                 </div>
                                 {note.platformDots.length > 0 && (
-                                  <div className="flex w-full flex-wrap justify-center gap-0.5">
+                                  <div className="flex w-full flex-wrap gap-0.5">
                                     {note.platformDots.map((dotColor, i) => (
                                       <span key={i} className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
                                     ))}
