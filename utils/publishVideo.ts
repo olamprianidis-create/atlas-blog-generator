@@ -1,6 +1,7 @@
 import { getServiceClient } from "./supabase";
 import { uploadVideoToYoutube } from "./youtube";
 import { publishVideoToTiktok } from "./tiktok";
+import { autoPostToDiscord } from "./discord";
 
 interface VideoUploadRow {
   id: string;
@@ -102,6 +103,21 @@ export async function publishVideoUploadById(uploadId: string): Promise<PublishV
   if (Object.keys(updates).length > 0) {
     updates.published_at = new Date().toISOString();
     await db.from("video_uploads").update(updates).eq("id", uploadId);
+  }
+
+  if (updates.youtube_status === "published") {
+    try {
+      await autoPostToDiscord(`🎬 New video published to YouTube: **${row.title}** — https://youtube.com/watch?v=${updates.youtube_video_id}`);
+    } catch (discordError) {
+      console.error("discord auto-post (youtube) failed:", discordError);
+    }
+  }
+  if (updates.tiktok_status === "published") {
+    try {
+      await autoPostToDiscord(`🎬 New video published to TikTok: **${row.title}**`);
+    } catch (discordError) {
+      console.error("discord auto-post (tiktok) failed:", discordError);
+    }
   }
 
   return { success: !youtubeError && !tiktokError, uploadId, youtubeError, tiktokError };

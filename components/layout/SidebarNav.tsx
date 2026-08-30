@@ -71,6 +71,15 @@ const ICONS = {
       strokeLinejoin="round"
     />
   ),
+  discord: iconWrapper(
+    <path
+      d="M8 9c0-1.5 2-2.5 4-2.5s4 1 4 2.5 M6 10c-2 2.5-2 6-1 8 1.5 1 3 1.5 4.5 1.7l.8-1.6c-.8-.3-1.5-.7-2.1-1.2 M18 10c2 2.5 2 6 1 8-1.5 1-3 1.5-4.5 1.7l-.8-1.6c.8-.3 1.5-.7 2.1-1.2 M9.5 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm5 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
   statistics: iconWrapper(
     <path
       d="M4 20V10 M10 20V4 M16 20v-7 M4 20h16"
@@ -110,6 +119,7 @@ const CONTENT_ITEMS: NavItem[] = [
 const STANDALONE_ITEMS: NavItem[] = [
   { href: "/calendar", label: "Content Calendar", icon: ICONS.calendar },
   { href: "/uploads", label: "Uploads", icon: ICONS.uploads },
+  { href: "/discord", label: "Discord", icon: ICONS.discord },
 ];
 
 const STATISTICS_ITEMS: NavItem[] = [

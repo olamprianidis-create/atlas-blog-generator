@@ -1,5 +1,7 @@
 import { getServiceClient } from "./supabase";
 import { logPublishAttempt } from "./webhookLogger";
+import { autoPostToDiscord } from "./discord";
+import { buildArticleUrl } from "./site";
 
 export interface PublishResult {
   success: boolean;
@@ -65,6 +67,13 @@ export async function publishArticleById(articleId: string): Promise<PublishResu
   // CLAUDE.md's "LinkedIn" / "Platform setup checklist" sections) — the
   // manual "Share to LinkedIn" button on the Published page still exists
   // for posting individually once that's ready.
+
+  try {
+    await autoPostToDiscord(`📝 New article published: **${article.title}** — ${buildArticleUrl(article.title)}`);
+  } catch (discordError) {
+    // Best-effort — a Discord hiccup shouldn't undo a successful publish.
+    console.error("discord auto-post (article) failed:", discordError);
+  }
 
   return { success: true, articleId };
 }

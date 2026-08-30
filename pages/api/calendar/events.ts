@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { PLATFORMS } from "../../../utils/types";
+import { createGoogleCalendarEvent } from "../../../utils/googleCalendar";
+import { stripHtml } from "../../../utils/richText";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_PLATFORMS = new Set(PLATFORMS.map((p) => p.value));
@@ -13,20 +15,42 @@ interface CalendarEvent {
   description: string | null;
   thumbnail_url: string | null;
   completed_platforms: string[];
+  sync_to_google_calendar: boolean;
+  google_event_id: string | null;
 }
 
-// title (0013) and completed_platforms (0012) are both optional columns
-// added after the table's original shape — try the full select first and
-// degrade a column at a time if a migration hasn't been run yet, rather
-// than failing the whole request over one missing column.
+// title/completed_platforms (0012/0013) and sync_to_google_calendar/
+// google_event_id (0014) are all optional columns added after the
+// table's original shape — try the full select first and degrade a
+// tier at a time if a migration hasn't been run yet, rather than
+// failing the whole request over one missing column.
 const SELECT_CANDIDATES = [
+  "id, event_date, platforms, title, description, thumbnail_url, completed_platforms, sync_to_google_calendar, google_event_id",
   "id, event_date, platforms, title, description, thumbnail_url, completed_platforms",
   "id, event_date, platforms, description, thumbnail_url, completed_platforms",
   "id, event_date, platforms, description, thumbnail_url",
 ];
 
 function fillDefaults(row: object): CalendarEvent {
-  return { title: null, completed_platforms: [], ...row } as unknown as CalendarEvent;
+  return {
+    title: null,
+    completed_platforms: [],
+    sync_to_google_calendar: false,
+    google_event_id: null,
+    ...row,
+  } as unknown as CalendarEvent;
+}
+
+// Only sends the fields whose column is actually present in `columns` —
+// lets one insert/update row object work across every fallback tier
+// above without hand-writing a stripped copy for each.
+function pickColumns(row: Record<string, unknown>, columns: string): Record<string, unknown> {
+  const present = new Set(columns.split(",").map((c) => c.trim()));
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (present.has(key)) out[key] = value;
+  }
+  return out;
 }
 
 export default async function handler(
@@ -70,12 +94,13 @@ export default async function handler(
   }
 
   if (req.method === "POST") {
-    const { eventDate, platforms, title, description, thumbnailUrl } = req.body as {
+    const { eventDate, platforms, title, description, thumbnailUrl, syncToGoogleCalendar } = req.body as {
       eventDate?: unknown;
       platforms?: unknown;
       title?: unknown;
       description?: unknown;
       thumbnailUrl?: unknown;
+      syncToGoogleCalendar?: unknown;
     };
 
     if (typeof eventDate !== "string" || !DAY_PATTERN.test(eventDate)) {
@@ -95,24 +120,51 @@ export default async function handler(
       return res.status(400).json({ error: "Invalid thumbnailUrl" });
     }
 
-    const insertRow = {
+    const insertRow: Record<string, unknown> = {
       event_date: eventDate,
       platforms: platformList,
       title: title || null,
       description: description || null,
       thumbnail_url: thumbnailUrl || null,
+      sync_to_google_calendar: !!syncToGoogleCalendar,
+      google_event_id: null,
     };
 
     try {
       let lastError: Error | null = null;
+      let saved: CalendarEvent | null = null;
       for (const columns of SELECT_CANDIDATES) {
-        const row: Record<string, unknown> = columns.includes("title") ? insertRow : { ...insertRow, title: undefined };
+        const row = pickColumns(insertRow, columns);
         const { data, error } = await supabase.from("content_calendar_events").insert(row).select(columns).single();
-        if (!error) return res.status(200).json(fillDefaults(data));
+        if (!error) {
+          saved = fillDefaults(data);
+          break;
+        }
         lastError = error;
         console.warn(`calendar event insert-select (${columns}) failed, trying a smaller column set:`, error.message);
       }
-      throw lastError;
+      if (!saved) throw lastError;
+
+      // Best-effort: a Google Calendar hiccup shouldn't lose the note
+      // itself, which is already saved at this point.
+      if (syncToGoogleCalendar) {
+        try {
+          const googleEventId = await createGoogleCalendarEvent(
+            saved.event_date,
+            saved.title || "Note",
+            stripHtml(saved.description ?? "")
+          );
+          await supabase
+            .from("content_calendar_events")
+            .update({ google_event_id: googleEventId })
+            .eq("id", saved.id);
+          saved.google_event_id = googleEventId;
+        } catch (syncError) {
+          console.error("google calendar sync (create) failed:", syncError);
+        }
+      }
+
+      return res.status(200).json(saved);
     } catch (error) {
       console.error("create calendar event failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";

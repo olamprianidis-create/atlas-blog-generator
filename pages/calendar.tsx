@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import AppLayout from "../components/layout/AppLayout";
 import CalendarDayModal, {
   CalendarEventItem,
+  GoogleCalendarEventForDay,
   ScheduledArticleForDay,
   VideoUploadForDay,
 } from "../components/CalendarDayModal";
 import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
+
+const GOOGLE_EVENT_COLOR_CLASS = "bg-indigo-500";
+
+interface GoogleCalendarListItem {
+  id: string;
+  summary: string;
+  primary: boolean;
+}
+
+interface GoogleCalendarEventRow {
+  id: string;
+  summary: string;
+  dateStr: string;
+}
 
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // Used for a platform-less event's single checkbox (no real platform tag).
@@ -150,6 +166,7 @@ function getMonthGrid(year: number, month: number): DayCell[][] {
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
   const today = todayDateStr();
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -159,6 +176,12 @@ export default function CalendarPage() {
   const [scheduledArticles, setScheduledArticles] = useState<ScheduledArticleRow[]>([]);
   const [videoUploads, setVideoUploads] = useState<VideoUploadRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarListItem[]>([]);
+  const [selectedGoogleCalendarId, setSelectedGoogleCalendarId] = useState<string | null>(null);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEventRow[]>([]);
+  const [googleBanner, setGoogleBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const grid = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const monthLabel = useMemo(
@@ -209,7 +232,73 @@ export default function CalendarPage() {
       .catch((err) => console.error("Failed to load blog posts for calendar:", err));
 
     loadVideoUploads();
+    loadGoogleCalendars();
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { gcal_connected, gcal_error } = router.query;
+    if (gcal_connected) setGoogleBanner({ type: "success", text: "Google Calendar connected." });
+    if (typeof gcal_error === "string") setGoogleBanner({ type: "error", text: `Google Calendar: ${gcal_error}` });
+    if (gcal_connected || gcal_error) {
+      loadGoogleCalendars();
+      router.replace("/calendar", undefined, { shallow: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady]);
+
+  function loadGoogleCalendars() {
+    fetch("/api/google-calendar/calendars")
+      .then((res) => res.json())
+      .then((data: { connected: boolean; calendars: GoogleCalendarListItem[]; selectedCalendarId: string | null }) => {
+        setGoogleConnected(data.connected);
+        setGoogleCalendars(data.calendars ?? []);
+        setSelectedGoogleCalendarId(data.selectedCalendarId);
+      })
+      .catch((err) => console.error("Failed to load Google calendars:", err));
+  }
+
+  async function selectGoogleCalendar(calendarId: string) {
+    setSelectedGoogleCalendarId(calendarId);
+    try {
+      const res = await fetch("/api/google-calendar/calendars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendarId }),
+      });
+      if (!res.ok) throw new Error("Failed to save calendar selection");
+    } catch (err) {
+      console.error("Failed to select Google calendar:", err);
+    }
+  }
+
+  useEffect(() => {
+    // Same 3-month window (prev/current/next) as the local notes fetch
+    // above, so days leaking in from adjacent months show real data too.
+    if (!googleConnected || !selectedGoogleCalendarId) {
+      setGoogleEvents([]);
+      return;
+    }
+    const prevMonth = viewMonth === 1 ? 12 : viewMonth - 1;
+    const prevYear = viewMonth === 1 ? viewYear - 1 : viewYear;
+    const nextMonth = viewMonth === 12 ? 1 : viewMonth + 1;
+    const nextYear = viewMonth === 12 ? viewYear + 1 : viewYear;
+    const months = [
+      [viewYear, viewMonth],
+      [prevYear, prevMonth],
+      [nextYear, nextMonth],
+    ];
+
+    Promise.all(
+      months.map(([y, m]) =>
+        fetch(`/api/google-calendar/events?year=${y}&month=${m}`)
+          .then((res) => res.json())
+          .then((data: { events: GoogleCalendarEventRow[] }) => data.events ?? [])
+      )
+    )
+      .then((results) => setGoogleEvents(results.flat()))
+      .catch((err) => console.error("Failed to load Google Calendar events:", err));
+  }, [viewYear, viewMonth, googleConnected, selectedGoogleCalendarId]);
 
   function loadVideoUploads() {
     fetch("/api/uploads")
@@ -301,6 +390,10 @@ export default function CalendarPage() {
     return videoPlatformEntries.filter((entry) => entry.dateStr === dateStr);
   }
 
+  function googleEventsForDate(dateStr: string): GoogleCalendarEventRow[] {
+    return googleEvents.filter((event) => event.dateStr === dateStr);
+  }
+
   interface Chip {
     key: string;
     label: string;
@@ -334,6 +427,17 @@ export default function CalendarPage() {
         label: `${video.title} (${platformLabel(video.platform)})`,
         colorClass: platformColorClass(video.platform),
         checked: video.status === "published",
+      });
+    }
+
+    // Read-only — these live in Google Calendar, not our own DB, so
+    // there's nothing here to check off or edit from this grid.
+    for (const event of googleEventsForDate(dateStr)) {
+      chips.push({
+        key: `gcal-${event.id}`,
+        label: event.summary,
+        colorClass: GOOGLE_EVENT_COLOR_CLASS,
+        checked: false,
       });
     }
 
@@ -389,6 +493,58 @@ export default function CalendarPage() {
                 ›
               </button>
             </div>
+          </div>
+
+          {googleBanner && (
+            <div
+              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+                googleBanner.type === "success"
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {googleBanner.text}
+            </div>
+          )}
+
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-500 text-xs font-bold text-white">
+              G
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-900">Google Calendar</p>
+              <p className="text-xs text-slate-500">
+                {googleConnected ? "Connected" : "Not connected"} — notes you tag "Also add to Google Calendar" sync
+                both ways with the calendar you pick below.
+              </p>
+            </div>
+            {!googleConnected && (
+              <a
+                href="/api/auth/google-calendar/start"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Connect
+              </a>
+            )}
+            {googleConnected && (
+              <select
+                value={selectedGoogleCalendarId ?? ""}
+                onChange={(event) => selectGoogleCalendar(event.target.value)}
+                className="rounded-md border border-slate-200 px-2 py-1.5 text-xs"
+              >
+                <option value="" disabled>
+                  Select a calendar…
+                </option>
+                {googleCalendars.map((cal) => (
+                  <option key={cal.id} value={cal.id}>
+                    {cal.summary}
+                    {cal.primary ? " (primary)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -547,6 +703,12 @@ export default function CalendarPage() {
               <span className={`h-3 w-3 rounded ${NOTE_COLOR_CLASS}`} />
               Notes
             </span>
+            {googleConnected && (
+              <span className="flex items-center gap-1.5">
+                <span className={`h-3 w-3 rounded ${GOOGLE_EVENT_COLOR_CLASS}`} />
+                Google Calendar
+              </span>
+            )}
           </div>
         </div>
       </main>
@@ -568,6 +730,11 @@ export default function CalendarPage() {
           }
           onVideoDeleted={(uploadId) => setVideoUploads((current) => current.filter((u) => u.id !== uploadId))}
           onVideoUploaded={loadVideoUploads}
+          googleCalendarConnected={googleConnected && !!selectedGoogleCalendarId}
+          googleEvents={googleEventsForDate(selectedDate).map((event): GoogleCalendarEventForDay => ({
+            key: event.id,
+            summary: event.summary,
+          }))}
         />
       )}
     </AppLayout>

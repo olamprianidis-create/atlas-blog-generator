@@ -20,6 +20,13 @@ export interface CalendarEventItem {
   description: string | null;
   thumbnail_url: string | null;
   completed_platforms: string[];
+  sync_to_google_calendar: boolean;
+  google_event_id: string | null;
+}
+
+export interface GoogleCalendarEventForDay {
+  key: string;
+  summary: string;
 }
 
 export interface VideoUploadForDay {
@@ -43,6 +50,8 @@ interface CalendarDayModalProps {
   onArticleDeleted: (articleId: string) => void;
   onVideoDeleted: (uploadId: string) => void;
   onVideoUploaded: () => void;
+  googleCalendarConnected: boolean;
+  googleEvents: GoogleCalendarEventForDay[];
 }
 
 function TrashButton({ onClick, label }: { onClick: (e: React.MouseEvent) => void; label: string }) {
@@ -90,10 +99,18 @@ interface EventFormProps {
   initialPlatforms: Platform[];
   initialDescription: string;
   initialThumbnailUrl: string | null;
+  initialSyncToGoogleCalendar: boolean;
+  googleCalendarConnected: boolean;
   submitLabel: string;
   savingLabel: string;
   onCancel: () => void;
-  onSubmit: (data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }) => Promise<void>;
+  onSubmit: (data: {
+    title: string;
+    platforms: Platform[];
+    description: string;
+    thumbnailUrl: string | null;
+    syncToGoogleCalendar: boolean;
+  }) => Promise<void>;
   onDelete?: () => Promise<void>;
   deleteLabel?: string;
   deletingLabel?: string;
@@ -104,6 +121,8 @@ function EventForm({
   initialPlatforms,
   initialDescription,
   initialThumbnailUrl,
+  initialSyncToGoogleCalendar,
+  googleCalendarConnected,
   submitLabel,
   savingLabel,
   onCancel,
@@ -116,6 +135,7 @@ function EventForm({
   const [platforms, setPlatforms] = useState<Platform[]>(initialPlatforms);
   const [description, setDescription] = useState(initialDescription);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(initialThumbnailUrl);
+  const [syncToGoogleCalendar, setSyncToGoogleCalendar] = useState(initialSyncToGoogleCalendar);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -148,7 +168,7 @@ function EventForm({
     setIsSaving(true);
     setError(null);
     try {
-      await onSubmit({ title: title.trim(), platforms, description, thumbnailUrl });
+      await onSubmit({ title: title.trim(), platforms, description, thumbnailUrl, syncToGoogleCalendar });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save event");
     } finally {
@@ -235,6 +255,17 @@ function EventForm({
         )}
       </div>
 
+      {googleCalendarConnected && (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={syncToGoogleCalendar}
+            onChange={(event) => setSyncToGoogleCalendar(event.target.checked)}
+          />
+          <span className="text-xs font-medium text-slate-700">Also add to Google Calendar</span>
+        </label>
+      )}
+
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       <div className="flex items-center justify-between gap-2">
@@ -311,6 +342,8 @@ export default function CalendarDayModal({
   onArticleDeleted,
   onVideoDeleted,
   onVideoUploaded,
+  googleCalendarConnected,
+  googleEvents,
 }: CalendarDayModalProps) {
   const [addMode, setAddMode] = useState<"menu" | "upload" | "note" | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -363,7 +396,13 @@ export default function CalendarDayModal({
     }
   }
 
-  async function handleCreate(data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }) {
+  async function handleCreate(data: {
+    title: string;
+    platforms: Platform[];
+    description: string;
+    thumbnailUrl: string | null;
+    syncToGoogleCalendar: boolean;
+  }) {
     const response = await fetch("/api/calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -373,6 +412,7 @@ export default function CalendarDayModal({
         title: data.title,
         description: data.description.trim() || undefined,
         thumbnailUrl: data.thumbnailUrl || undefined,
+        syncToGoogleCalendar: data.syncToGoogleCalendar,
       }),
     });
     const result = await response.json();
@@ -383,7 +423,13 @@ export default function CalendarDayModal({
 
   async function handleUpdate(
     eventId: string,
-    data: { title: string; platforms: Platform[]; description: string; thumbnailUrl: string | null }
+    data: {
+      title: string;
+      platforms: Platform[];
+      description: string;
+      thumbnailUrl: string | null;
+      syncToGoogleCalendar: boolean;
+    }
   ) {
     const response = await fetch(`/api/calendar/events/${eventId}`, {
       method: "PATCH",
@@ -393,6 +439,7 @@ export default function CalendarDayModal({
         title: data.title,
         description: data.description.trim() || undefined,
         thumbnailUrl: data.thumbnailUrl || undefined,
+        syncToGoogleCalendar: data.syncToGoogleCalendar,
       }),
     });
     const result = await response.json();
@@ -433,11 +480,21 @@ export default function CalendarDayModal({
         </div>
 
         <div className="mt-4 flex flex-col gap-2">
-          {scheduledArticles.length === 0 && videoUploads.length === 0 && (
+          {scheduledArticles.length === 0 && videoUploads.length === 0 && googleEvents.length === 0 && (
             <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
               Nothing to see here.
             </p>
           )}
+
+          {googleEvents.length > 0 &&
+            googleEvents.map((event) => (
+              <div key={event.key} className="flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                <span className="shrink-0 rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-medium text-white">
+                  Google
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900">{event.summary}</p>
+              </div>
+            ))}
 
           {scheduledArticles.length > 0 &&
             scheduledArticles.map((article) => (
@@ -525,6 +582,8 @@ export default function CalendarDayModal({
                   initialPlatforms={event.platforms as Platform[]}
                   initialDescription={event.description ?? ""}
                   initialThumbnailUrl={event.thumbnail_url}
+                  initialSyncToGoogleCalendar={event.sync_to_google_calendar}
+                  googleCalendarConnected={googleCalendarConnected}
                   submitLabel="Save Changes"
                   savingLabel="Saving..."
                   onCancel={() => setEditingEventId(null)}
@@ -653,6 +712,8 @@ export default function CalendarDayModal({
               initialPlatforms={[]}
               initialDescription=""
               initialThumbnailUrl={null}
+              initialSyncToGoogleCalendar={false}
+              googleCalendarConnected={googleCalendarConnected}
               submitLabel="Add Note"
               savingLabel="Saving..."
               onCancel={() => setAddMode(null)}
