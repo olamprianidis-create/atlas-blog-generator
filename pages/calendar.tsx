@@ -535,7 +535,7 @@ export default function CalendarPage() {
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
             <span className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded ${BLOG_POST_COLOR_CLASS}`} />
-              Blog
+              Blog (article)
             </span>
             {PLATFORMS.map((platform) => (
               <span key={platform.value} className="flex items-center gap-1.5">
