@@ -203,12 +203,13 @@ function LinkedInSection({ articleId, isPublished }: { articleId: string | null;
 
       {connected && articleId && articleStatus !== "published" && (
         <p className="mt-2 text-xs text-slate-400">
-          Sharing becomes available once this article is published (scheduled or via Publish Now above).
+          This will share automatically to LinkedIn the moment it publishes — whether that&apos;s the scheduled
+          time (via the cron job) or Publish Now above. The manual button here is only for a retry afterward.
         </p>
       )}
       {(!connected || !articleId) && (
         <p className="mt-2 text-xs text-slate-400">
-          When connected, you can share this article as a link post on your LinkedIn profile once it&apos;s published.
+          When connected, this article shares automatically to your LinkedIn profile the moment it publishes.
         </p>
       )}
       {linkedinError && (

@@ -1,6 +1,7 @@
 import { getServiceClient } from "./supabase";
 import { logPublishAttempt } from "./webhookLogger";
 import { autoPostToDiscord } from "./discord";
+import { postArticleToLinkedin } from "./linkedin";
 import { buildArticleUrl } from "./site";
 
 export interface PublishResult {
@@ -60,13 +61,33 @@ export async function publishArticleById(articleId: string): Promise<PublishResu
 
   await logPublishAttempt({ articleId, status: "success", message: "Marked published" });
 
-  // LinkedIn auto-posting disabled 2026-08-28 — it was blocking the
-  // "just publish it" path (0008_linkedin.sql was never run, so every
-  // attempt failed at the DB step) with no benefit while LinkedIn isn't
-  // even connected yet. Revisit when LinkedIn is actually set up (see
-  // CLAUDE.md's "LinkedIn" / "Platform setup checklist" sections) — the
-  // manual "Share to LinkedIn" button on the Published page still exists
-  // for posting individually once that's ready.
+  // Re-enabled 2026-08-30 now that LinkedIn is actually connected (see
+  // CLAUDE.md's "LinkedIn" section — this was disabled 2026-08-28 when it
+  // wasn't). Best-effort: a LinkedIn failure only records status/error on
+  // the article row, it never fails the publish itself (which already
+  // succeeded above). Covers both the "Publish Now" button and the
+  // scheduled-article cron path, since both call this same function.
+  try {
+    const urn = await postArticleToLinkedin({
+      title: article.title,
+      summary: article.meta_description ?? undefined,
+      articleUrl: buildArticleUrl(article.title),
+    });
+    await supabase
+      .from("scheduled_articles")
+      .update({
+        linkedin_status: "posted",
+        linkedin_post_urn: urn,
+        linkedin_error: null,
+        linkedin_posted_at: new Date().toISOString(),
+      })
+      .eq("id", articleId);
+  } catch (linkedinError) {
+    const message = linkedinError instanceof Error ? linkedinError.message : "Unknown error";
+    const status = message.includes("isn't connected") || message.includes("connection expired") ? "not_connected" : "failed";
+    await supabase.from("scheduled_articles").update({ linkedin_status: status, linkedin_error: message }).eq("id", articleId);
+    console.error("linkedin auto-post failed:", linkedinError);
+  }
 
   try {
     await autoPostToDiscord(`📝 New article published: **${article.title}** — ${buildArticleUrl(article.title)}`);

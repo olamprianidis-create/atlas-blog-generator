@@ -26,10 +26,25 @@ function formatPublishDate(iso: string | null) {
   });
 }
 
+function LinkedInScheduledBadge() {
+  return (
+    <span
+      title="Will auto-share to LinkedIn when this publishes"
+      aria-label="Will auto-share to LinkedIn when this publishes"
+      className="ml-1.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-600 align-middle"
+    >
+      <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5">
+        <path d="m5 13 4 4 10-10" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
+
 export default function ScheduledPage() {
   const [articles, setArticles] = useState<ScheduledArticleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [linkedinConnected, setLinkedinConnected] = useState(false);
 
   useEffect(() => {
     fetch("/api/scheduled-articles")
@@ -40,6 +55,11 @@ export default function ScheduledPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load scheduled articles"))
       .finally(() => setIsLoading(false));
+
+    fetch("/api/platform-connections")
+      .then((res) => res.json())
+      .then((data) => setLinkedinConnected(!!data.linkedin))
+      .catch(() => setLinkedinConnected(false));
   }, []);
 
   return (
@@ -71,8 +91,9 @@ export default function ScheduledPage() {
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">{article.title}</p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 flex items-center text-xs text-slate-500">
                         {categoryLabel(article.category)} · Publishes {formatPublishDate(article.publish_date)}
+                        {linkedinConnected && <LinkedInScheduledBadge />}
                       </p>
                     </div>
                     <span className="ml-4 shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">

@@ -23,7 +23,7 @@ const USERINFO_URL = "https://api.linkedin.com/v2/userinfo";
 const POSTS_URL = "https://api.linkedin.com/rest/posts";
 // LinkedIn requires every REST API call to pin a version — bump this
 // periodically; LinkedIn deprecates versions roughly a year after release.
-const LINKEDIN_API_VERSION = "202505";
+const LINKEDIN_API_VERSION = "202608";
 
 function requireEnv() {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
