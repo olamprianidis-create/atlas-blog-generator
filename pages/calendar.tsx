@@ -23,7 +23,7 @@ interface GoogleCalendarEventRow {
   dateStr: string;
 }
 
-const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const WEEKDAY_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 // Used for a platform-less event's single checkbox (no real platform tag).
 const GENERAL_PLATFORM_KEY = "general";
 // Post-it notes are always yellow, regardless of which platform(s)
@@ -139,7 +139,7 @@ function daysInMonth(year: number, month: number) {
 // how Google/Apple Calendar render a month grid.
 function getMonthGrid(year: number, month: number): DayCell[][] {
   const firstDay = new Date(year, month - 1, 1);
-  const firstWeekday = (firstDay.getDay() + 6) % 7; // 0 = Monday
+  const firstWeekday = firstDay.getDay(); // 0 = Sunday
   const totalDaysInMonth = daysInMonth(year, month);
 
   const prevMonth = month === 1 ? 12 : month - 1;
