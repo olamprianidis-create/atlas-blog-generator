@@ -182,6 +182,7 @@ export default function CalendarPage() {
   const [selectedGoogleCalendarId, setSelectedGoogleCalendarId] = useState<string | null>(null);
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEventRow[]>([]);
   const [googleBanner, setGoogleBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const grid = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const monthLabel = useMemo(
@@ -371,6 +372,90 @@ export default function CalendarPage() {
     keys.forEach((k) => toggleEventPlatform(event.id, k, !allChecked));
   }
 
+  // Drag-and-drop reschedule: preserves whatever time-of-day the item
+  // already had, only swapping the date portion, so dragging an 9am
+  // article to tomorrow doesn't quietly reset it to midnight.
+  function combineDateKeepingTime(oldIso: string, newDateStr: string): string {
+    const old = new Date(oldIso);
+    const [y, m, d] = newDateStr.split("-").map(Number);
+    const combined = new Date(old);
+    combined.setFullYear(y, m - 1, d);
+    return combined.toISOString();
+  }
+
+  async function moveNoteToDate(eventId: string, newDateStr: string) {
+    const previous = events.find((e) => e.id === eventId);
+    if (!previous || previous.event_date === newDateStr) return;
+    setEvents((current) => current.map((e) => (e.id === eventId ? { ...e, event_date: newDateStr } : e)));
+    try {
+      const res = await fetch(`/api/calendar/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventDate: newDateStr }),
+      });
+      if (!res.ok) throw new Error("Failed to reschedule note");
+    } catch (err) {
+      console.error(err);
+      setEvents((current) => current.map((e) => (e.id === eventId ? previous : e)));
+    }
+  }
+
+  async function moveArticleToDate(articleId: string, newDateStr: string) {
+    const previous = scheduledArticles.find((a) => a.id === articleId);
+    if (!previous?.publish_date) return;
+    const newIso = combineDateKeepingTime(previous.publish_date, newDateStr);
+    if (previous.publish_date.slice(0, 10) === newDateStr) return;
+    setScheduledArticles((current) => current.map((a) => (a.id === articleId ? { ...a, publish_date: newIso } : a)));
+    try {
+      const res = await fetch(`/api/scheduled-articles/${articleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishDate: newIso }),
+      });
+      if (!res.ok) throw new Error("Failed to reschedule article");
+    } catch (err) {
+      console.error(err);
+      setScheduledArticles((current) => current.map((a) => (a.id === articleId ? previous : a)));
+    }
+  }
+
+  async function moveVideoToDate(uploadId: string, newDateStr: string) {
+    const previous = videoUploads.find((u) => u.id === uploadId);
+    const oldIso = previous?.publish_at ?? previous?.created_at;
+    if (!previous || !oldIso) return;
+    const newIso = combineDateKeepingTime(oldIso, newDateStr);
+    if (oldIso.slice(0, 10) === newDateStr) return;
+    setVideoUploads((current) => current.map((u) => (u.id === uploadId ? { ...u, publish_at: newIso } : u)));
+    try {
+      const res = await fetch(`/api/uploads/${uploadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publishAt: newIso }),
+      });
+      if (!res.ok) throw new Error("Failed to reschedule video");
+    } catch (err) {
+      console.error(err);
+      setVideoUploads((current) => current.map((u) => (u.id === uploadId ? previous : u)));
+    }
+  }
+
+  type DragPayload = { kind: "note" | "article" | "video"; id: string };
+
+  function handleDrop(newDateStr: string, event: React.DragEvent) {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("application/json");
+    if (!raw) return;
+    let payload: DragPayload;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (payload.kind === "note") void moveNoteToDate(payload.id, newDateStr);
+    else if (payload.kind === "article") void moveArticleToDate(payload.id, newDateStr);
+    else if (payload.kind === "video") void moveVideoToDate(payload.id, newDateStr);
+  }
+
   function findArticlesForDate(dateStr: string): ScheduledArticleForDay[] {
     return scheduledArticles
       .filter((article) => article.publish_date && article.publish_date.slice(0, 10) === dateStr)
@@ -404,6 +489,10 @@ export default function CalendarPage() {
     // since it should only ever reflect what actually happened. Present =
     // manually toggleable (platform events with no automated pipeline).
     onToggle?: () => void;
+    // Undefined = not draggable (already published, or read-only Google
+    // Calendar entries) — only still-scheduled items can be dragged to a
+    // different day.
+    dragPayload?: DragPayload;
   }
 
   function getChipsForDate(dateStr: string): Chip[] {
@@ -415,6 +504,7 @@ export default function CalendarPage() {
         label: article.title,
         colorClass: BLOG_POST_COLOR_CLASS,
         checked: article.status === "published",
+        dragPayload: article.status === "scheduled" ? { kind: "article", id: article.id } : undefined,
       });
     }
 
@@ -427,6 +517,7 @@ export default function CalendarPage() {
         label: `${video.title} (${platformLabel(video.platform)})`,
         colorClass: platformColorClass(video.platform),
         checked: video.status === "published",
+        dragPayload: video.status === "pending" ? { kind: "video", id: video.uploadId } : undefined,
       });
     }
 
@@ -449,6 +540,7 @@ export default function CalendarPage() {
     label: string;
     checked: boolean;
     onToggle: () => void;
+    dragPayload: DragPayload;
     // One dot per targeted platform, in that platform's real color — the
     // note square itself always stays yellow regardless of what it's
     // tagged with.
@@ -459,6 +551,7 @@ export default function CalendarPage() {
     return eventsForDate(dateStr).map((event) => ({
       key: event.id,
       label: event.title || "Note",
+      dragPayload: { kind: "note", id: event.id },
       checked:
         event.platforms.length === 0
           ? (event.completed_platforms ?? []).includes(GENERAL_PLATFORM_KEY)
@@ -584,9 +677,18 @@ export default function CalendarPage() {
                             setSelectedDate(dateStr);
                           }
                         }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          if (dragOverDate !== dateStr) setDragOverDate(dateStr);
+                        }}
+                        onDragLeave={() => setDragOverDate((current) => (current === dateStr ? null : current))}
+                        onDrop={(event) => {
+                          setDragOverDate(null);
+                          handleDrop(dateStr, event);
+                        }}
                         className={`flex h-56 cursor-pointer flex-col gap-1 overflow-hidden border-r border-slate-100 p-2 text-left transition-colors last:border-r-0 hover:brightness-95 ${
                           dimmed ? "bg-slate-50" : "bg-white"
-                        }`}
+                        } ${dragOverDate === dateStr ? "ring-2 ring-inset ring-blue-400" : ""}`}
                       >
                         <span
                           className={`shrink-0 text-sm font-semibold ${dimmed ? "text-slate-400" : "text-slate-900"} ${isTodayCell ? "w-fit rounded-full bg-blue-600 px-1.5 py-0.5 text-white" : ""}`}
@@ -598,9 +700,16 @@ export default function CalendarPage() {
                           {chips.map((chip) => (
                             <div
                               key={chip.key}
+                              draggable={!!chip.dragPayload}
+                              onDragStart={(event) => {
+                                if (!chip.dragPayload) return;
+                                event.stopPropagation();
+                                event.dataTransfer.effectAllowed = "move";
+                                event.dataTransfer.setData("application/json", JSON.stringify(chip.dragPayload));
+                              }}
                               className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
                                 dimmed ? "opacity-60" : ""
-                              }`}
+                              } ${chip.dragPayload ? "cursor-grab active:cursor-grabbing" : ""}`}
                             >
                               <button
                                 type="button"
@@ -639,7 +748,13 @@ export default function CalendarPage() {
                               <div
                                 key={note.key}
                                 title={note.label}
-                                className={`flex h-16 w-full shrink-0 flex-col justify-between rounded-md p-1.5 shadow-sm ${NOTE_COLOR_CLASS} ${NOTE_TEXT_CLASS}`}
+                                draggable
+                                onDragStart={(event) => {
+                                  event.stopPropagation();
+                                  event.dataTransfer.effectAllowed = "move";
+                                  event.dataTransfer.setData("application/json", JSON.stringify(note.dragPayload));
+                                }}
+                                className={`flex h-16 w-full shrink-0 cursor-grab flex-col justify-between rounded-md p-1.5 shadow-sm active:cursor-grabbing ${NOTE_COLOR_CLASS} ${NOTE_TEXT_CLASS}`}
                               >
                                 <div className="flex w-full items-start justify-between gap-1">
                                   <span className="line-clamp-2 text-left text-[10px] font-semibold leading-tight">

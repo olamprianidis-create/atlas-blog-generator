@@ -100,6 +100,7 @@ interface EventFormProps {
   initialDescription: string;
   initialThumbnailUrl: string | null;
   initialSyncToGoogleCalendar: boolean;
+  initialEventDate: string;
   googleCalendarConnected: boolean;
   submitLabel: string;
   savingLabel: string;
@@ -110,6 +111,7 @@ interface EventFormProps {
     description: string;
     thumbnailUrl: string | null;
     syncToGoogleCalendar: boolean;
+    eventDate: string;
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   deleteLabel?: string;
@@ -122,6 +124,7 @@ function EventForm({
   initialDescription,
   initialThumbnailUrl,
   initialSyncToGoogleCalendar,
+  initialEventDate,
   googleCalendarConnected,
   submitLabel,
   savingLabel,
@@ -136,6 +139,7 @@ function EventForm({
   const [description, setDescription] = useState(initialDescription);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(initialThumbnailUrl);
   const [syncToGoogleCalendar, setSyncToGoogleCalendar] = useState(initialSyncToGoogleCalendar);
+  const [eventDate, setEventDate] = useState(initialEventDate);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -165,10 +169,14 @@ function EventForm({
       setError("Give this note a header first.");
       return;
     }
+    if (!eventDate) {
+      setError("Pick a date first.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
-      await onSubmit({ title: title.trim(), platforms, description, thumbnailUrl, syncToGoogleCalendar });
+      await onSubmit({ title: title.trim(), platforms, description, thumbnailUrl, syncToGoogleCalendar, eventDate });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save event");
     } finally {
@@ -202,6 +210,19 @@ function EventForm({
           onChange={(event) => setTitle(event.target.value)}
           placeholder="e.g. Draft Instagram caption"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="event-date" className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">
+          Date
+        </label>
+        <input
+          id="event-date"
+          type="date"
+          value={eventDate}
+          onChange={(event) => setEventDate(event.target.value)}
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
@@ -402,12 +423,13 @@ export default function CalendarDayModal({
     description: string;
     thumbnailUrl: string | null;
     syncToGoogleCalendar: boolean;
+    eventDate: string;
   }) {
     const response = await fetch("/api/calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        eventDate: dateStr,
+        eventDate: data.eventDate,
         platforms: data.platforms,
         title: data.title,
         description: data.description.trim() || undefined,
@@ -429,6 +451,7 @@ export default function CalendarDayModal({
       description: string;
       thumbnailUrl: string | null;
       syncToGoogleCalendar: boolean;
+      eventDate: string;
     }
   ) {
     const response = await fetch(`/api/calendar/events/${eventId}`, {
@@ -440,6 +463,7 @@ export default function CalendarDayModal({
         description: data.description.trim() || undefined,
         thumbnailUrl: data.thumbnailUrl || undefined,
         syncToGoogleCalendar: data.syncToGoogleCalendar,
+        eventDate: data.eventDate,
       }),
     });
     const result = await response.json();
@@ -583,6 +607,7 @@ export default function CalendarDayModal({
                   initialDescription={event.description ?? ""}
                   initialThumbnailUrl={event.thumbnail_url}
                   initialSyncToGoogleCalendar={event.sync_to_google_calendar}
+                  initialEventDate={event.event_date}
                   googleCalendarConnected={googleCalendarConnected}
                   submitLabel="Save Changes"
                   savingLabel="Saving..."
@@ -713,6 +738,7 @@ export default function CalendarDayModal({
               initialDescription=""
               initialThumbnailUrl={null}
               initialSyncToGoogleCalendar={false}
+              initialEventDate={dateStr}
               googleCalendarConnected={googleCalendarConnected}
               submitLabel="Add Note"
               savingLabel="Saving..."

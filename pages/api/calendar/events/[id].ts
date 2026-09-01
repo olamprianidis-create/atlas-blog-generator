@@ -65,17 +65,20 @@ export default async function handler(
   const supabase = getServiceClient();
 
   if (req.method === "PATCH") {
-    const { platforms, title, description, thumbnailUrl, syncToGoogleCalendar } = req.body as {
+    const { platforms, title, description, thumbnailUrl, syncToGoogleCalendar, eventDate } = req.body as {
       platforms?: unknown;
       title?: unknown;
       description?: unknown;
       thumbnailUrl?: unknown;
       syncToGoogleCalendar?: unknown;
+      eventDate?: unknown;
     };
 
-    const platformList = Array.isArray(platforms) ? platforms : [];
-    if (!platformList.every((p) => typeof p === "string" && VALID_PLATFORMS.has(p as never))) {
-      return res.status(400).json({ error: "Invalid platforms" });
+    if (platforms !== undefined) {
+      const platformList = Array.isArray(platforms) ? platforms : [];
+      if (!platformList.every((p) => typeof p === "string" && VALID_PLATFORMS.has(p as never))) {
+        return res.status(400).json({ error: "Invalid platforms" });
+      }
     }
     if (title !== undefined && title !== null && typeof title !== "string") {
       return res.status(400).json({ error: "Invalid title" });
@@ -86,6 +89,9 @@ export default async function handler(
     if (thumbnailUrl !== undefined && thumbnailUrl !== null && typeof thumbnailUrl !== "string") {
       return res.status(400).json({ error: "Invalid thumbnailUrl" });
     }
+    if (eventDate !== undefined && (typeof eventDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate))) {
+      return res.status(400).json({ error: "Invalid eventDate" });
+    }
 
     try {
       const { data: existing } = await supabase
@@ -95,13 +101,17 @@ export default async function handler(
         .maybeSingle();
       const existingGoogleEventId: string | null = existing?.google_event_id ?? null;
 
-      const updateRow: Record<string, unknown> = {
-        platforms: platformList,
-        title: title || null,
-        description: description || null,
-        thumbnail_url: thumbnailUrl || null,
-        sync_to_google_calendar: !!syncToGoogleCalendar,
-      };
+      // Fields are only included when the caller actually sent them, so a
+      // drag-and-drop reschedule (which only sends eventDate) doesn't wipe
+      // out the note's title/description/platforms — those still come in
+      // together from the full edit form's submit, unchanged from before.
+      const updateRow: Record<string, unknown> = {};
+      if (platforms !== undefined) updateRow.platforms = platforms;
+      if (title !== undefined) updateRow.title = title || null;
+      if (description !== undefined) updateRow.description = description || null;
+      if (thumbnailUrl !== undefined) updateRow.thumbnail_url = thumbnailUrl || null;
+      if (syncToGoogleCalendar !== undefined) updateRow.sync_to_google_calendar = !!syncToGoogleCalendar;
+      if (eventDate !== undefined) updateRow.event_date = eventDate;
 
       let lastError: Error | null = null;
       let saved: CalendarEvent | null = null;
@@ -123,17 +133,23 @@ export default async function handler(
       if (!saved) throw lastError;
 
       // Best-effort: a Google Calendar hiccup shouldn't lose the note
-      // itself, which is already saved at this point.
+      // itself, which is already saved at this point. When the caller
+      // didn't send syncToGoogleCalendar at all (e.g. a drag-and-drop
+      // reschedule that only sends eventDate), infer it from whether a
+      // Google event already exists rather than treating it as "off" —
+      // otherwise dragging a synced note to a new day would silently
+      // desync it from Google Calendar.
+      const effectiveSync = syncToGoogleCalendar !== undefined ? !!syncToGoogleCalendar : !!existingGoogleEventId;
       try {
         const plainDescription = stripHtml(saved.description ?? "");
-        if (syncToGoogleCalendar && existingGoogleEventId) {
+        if (effectiveSync && existingGoogleEventId) {
           await updateGoogleCalendarEvent(existingGoogleEventId, saved.event_date, saved.title || "Note", plainDescription);
           saved.google_event_id = existingGoogleEventId;
-        } else if (syncToGoogleCalendar && !existingGoogleEventId) {
+        } else if (effectiveSync && !existingGoogleEventId) {
           const googleEventId = await createGoogleCalendarEvent(saved.event_date, saved.title || "Note", plainDescription);
           await supabase.from("content_calendar_events").update({ google_event_id: googleEventId }).eq("id", id);
           saved.google_event_id = googleEventId;
-        } else if (!syncToGoogleCalendar && existingGoogleEventId) {
+        } else if (!effectiveSync && existingGoogleEventId) {
           await deleteGoogleCalendarEvent(existingGoogleEventId);
           await supabase.from("content_calendar_events").update({ google_event_id: null }).eq("id", id);
           saved.google_event_id = null;

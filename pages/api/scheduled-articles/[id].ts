@@ -70,19 +70,28 @@ export default async function handler(
   }
 
   if (req.method === "PATCH") {
-    const { linkedinAutoShare } = req.body as { linkedinAutoShare?: unknown };
-    if (typeof linkedinAutoShare !== "boolean") {
-      return res.status(400).json({ error: "Missing or invalid linkedinAutoShare" });
+    const { linkedinAutoShare, publishDate } = req.body as { linkedinAutoShare?: unknown; publishDate?: unknown };
+
+    if (linkedinAutoShare !== undefined && typeof linkedinAutoShare !== "boolean") {
+      return res.status(400).json({ error: "Invalid linkedinAutoShare" });
     }
+    if (publishDate !== undefined && (typeof publishDate !== "string" || Number.isNaN(Date.parse(publishDate)))) {
+      return res.status(400).json({ error: "Invalid publishDate" });
+    }
+    if (linkedinAutoShare === undefined && publishDate === undefined) {
+      return res.status(400).json({ error: "Nothing to update" });
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (linkedinAutoShare !== undefined) updates.linkedin_auto_share = linkedinAutoShare;
+    if (publishDate !== undefined) updates.publish_date = publishDate;
+
     try {
-      const { error } = await supabase
-        .from("scheduled_articles")
-        .update({ linkedin_auto_share: linkedinAutoShare })
-        .eq("id", id);
+      const { error } = await supabase.from("scheduled_articles").update(updates).eq("id", id);
       if (error) throw new Error(error.message);
       return res.status(200).json({});
     } catch (error) {
-      console.error("update linkedin_auto_share failed:", error);
+      console.error("update scheduled article failed:", error);
       const message = error instanceof Error ? error.message : "Unknown error";
       return res.status(502).json({ error: `Failed to update article: ${message}` });
     }
