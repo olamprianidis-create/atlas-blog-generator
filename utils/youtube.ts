@@ -13,7 +13,13 @@ import { getServiceClient } from "./supabase";
 //    The app must also pass Google's OAuth verification (or stay in
 //    "Testing" mode with the ATLAS account added as a test user) before
 //    tokens issued to that account will keep working past 7 days.
-const SCOPES = ["https://www.googleapis.com/auth/youtube.upload"];
+// youtube.upload alone doesn't cover videos.delete (confirmed live — it
+// 403s with "insufficient authentication scopes"), so the full "youtube"
+// scope is needed for the Uploads page's delete/replace actions to work.
+// Reconnecting is required after this change to actually grant it — an
+// existing token issued under the old, narrower scope won't gain it
+// retroactively.
+const SCOPES = ["https://www.googleapis.com/auth/youtube"];
 
 function getOAuthClient() {
   const clientId = process.env.YOUTUBE_CLIENT_ID;
@@ -128,6 +134,10 @@ export interface YoutubeUploadInput {
   privacyStatus: "public" | "unlisted" | "private";
   madeForKids: boolean;
   thumbnailUrl?: string;
+  // YouTube has no explicit "make this a Short" API flag — a video under
+  // 3 minutes is classified as a Short when its title or description
+  // contains "#Shorts". "short" appends that tag to the title below.
+  uploadType?: "video" | "short";
 }
 
 export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<string> {
@@ -145,11 +155,14 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
   // not a function". Readable.fromWeb() bridges the two.
   const videoStream = Readable.fromWeb(videoResponse.body as import("stream/web").ReadableStream);
 
+  const title =
+    input.uploadType === "short" && !/#shorts/i.test(input.title) ? `${input.title} #Shorts` : input.title;
+
   const insertResponse = await youtube.videos.insert({
     part: ["snippet", "status"],
     requestBody: {
       snippet: {
-        title: input.title,
+        title,
         description: input.description || undefined,
         tags: input.tags && input.tags.length > 0 ? input.tags : undefined,
         categoryId: input.categoryId || undefined,
@@ -181,4 +194,10 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
   }
 
   return videoId;
+}
+
+export async function deleteVideoFromYoutube(videoId: string): Promise<void> {
+  const auth = await getAuthorizedClient();
+  const youtube = google.youtube({ version: "v3", auth });
+  await youtube.videos.delete({ id: videoId });
 }

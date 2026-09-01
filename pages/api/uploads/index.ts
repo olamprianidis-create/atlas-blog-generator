@@ -14,6 +14,7 @@ interface CreateUploadBody {
   youtubePrivacyStatus: "public" | "unlisted" | "private";
   youtubeCategoryId?: string;
   youtubeMadeForKids: boolean;
+  youtubeUploadType?: "video" | "short";
 
   targetTiktok: boolean;
   tiktokPrivacyLevel: string;
@@ -55,37 +56,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const isScheduled = !!body.publishAt && new Date(body.publishAt).getTime() > Date.now();
 
-  const { data: row, error: insertError } = await db
+  const baseInsert = {
+    title: body.title.trim(),
+    description: body.description?.trim() || null,
+    tags: body.tags ?? [],
+    video_url: body.videoUrl,
+    thumbnail_url: body.thumbnailUrl || null,
+    publish_at: body.publishAt || null,
+
+    target_youtube: body.targetYoutube,
+    // Both the immediate and scheduled paths insert as "pending" —
+    // publishVideoUploadById() is what actually flips it to
+    // published/failed, called either right below (immediate) or later
+    // by the cron check (scheduled). One code path does the real work
+    // either way, so scheduling isn't a second, drifting implementation.
+    youtube_status: !body.targetYoutube ? "not_selected" : "pending",
+    youtube_privacy_status: body.youtubePrivacyStatus,
+    youtube_category_id: body.youtubeCategoryId || null,
+    youtube_made_for_kids: body.youtubeMadeForKids,
+
+    target_tiktok: body.targetTiktok,
+    tiktok_status: !body.targetTiktok ? "not_selected" : "pending",
+    tiktok_privacy_level: body.tiktokPrivacyLevel,
+    tiktok_disable_comment: body.tiktokDisableComment,
+    tiktok_disable_duet: body.tiktokDisableDuet,
+    tiktok_disable_stitch: body.tiktokDisableStitch,
+    tiktok_cover_timestamp_ms: body.tiktokCoverTimestampMs,
+  };
+
+  let { data: row, error: insertError } = await db
     .from("video_uploads")
-    .insert({
-      title: body.title.trim(),
-      description: body.description?.trim() || null,
-      tags: body.tags ?? [],
-      video_url: body.videoUrl,
-      thumbnail_url: body.thumbnailUrl || null,
-      publish_at: body.publishAt || null,
-
-      target_youtube: body.targetYoutube,
-      // Both the immediate and scheduled paths insert as "pending" —
-      // publishVideoUploadById() is what actually flips it to
-      // published/failed, called either right below (immediate) or later
-      // by the cron check (scheduled). One code path does the real work
-      // either way, so scheduling isn't a second, drifting implementation.
-      youtube_status: !body.targetYoutube ? "not_selected" : "pending",
-      youtube_privacy_status: body.youtubePrivacyStatus,
-      youtube_category_id: body.youtubeCategoryId || null,
-      youtube_made_for_kids: body.youtubeMadeForKids,
-
-      target_tiktok: body.targetTiktok,
-      tiktok_status: !body.targetTiktok ? "not_selected" : "pending",
-      tiktok_privacy_level: body.tiktokPrivacyLevel,
-      tiktok_disable_comment: body.tiktokDisableComment,
-      tiktok_disable_duet: body.tiktokDisableDuet,
-      tiktok_disable_stitch: body.tiktokDisableStitch,
-      tiktok_cover_timestamp_ms: body.tiktokCoverTimestampMs,
-    })
+    .insert({ ...baseInsert, youtube_upload_type: body.youtubeUploadType || "video" })
     .select()
     .single();
+
+  if (insertError) {
+    // youtube_upload_type is an optional column (0016_youtube_upload_type.sql)
+    // — degrade gracefully to inserting without it if that migration hasn't
+    // been run yet.
+    console.warn(
+      "video_uploads insert with youtube_upload_type failed, retrying without it (run supabase/migrations/0016_youtube_upload_type.sql):",
+      insertError.message
+    );
+    ({ data: row, error: insertError } = await db.from("video_uploads").insert(baseInsert).select().single());
+  }
 
   if (insertError || !row) {
     return res.status(500).json({ error: insertError?.message || "Failed to save the upload." });

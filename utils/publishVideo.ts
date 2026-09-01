@@ -16,6 +16,7 @@ interface VideoUploadRow {
   youtube_privacy_status: "public" | "unlisted" | "private" | null;
   youtube_category_id: string | null;
   youtube_made_for_kids: boolean;
+  youtube_upload_type: "video" | "short" | null;
 
   target_tiktok: boolean;
   tiktok_status: string;
@@ -66,6 +67,7 @@ export async function publishVideoUploadById(uploadId: string): Promise<PublishV
         privacyStatus: row.youtube_privacy_status ?? "public",
         madeForKids: row.youtube_made_for_kids,
         thumbnailUrl: row.thumbnail_url ?? undefined,
+        uploadType: row.youtube_upload_type ?? "video",
       });
       updates.youtube_status = "published";
       updates.youtube_video_id = videoId;

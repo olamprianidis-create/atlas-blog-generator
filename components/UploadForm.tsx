@@ -33,6 +33,7 @@ export default function UploadForm({ initialDateStr, onSuccess, onCancel }: Uplo
   const [tagsInput, setTagsInput] = useState("");
 
   const [targetYoutube, setTargetYoutube] = useState(true);
+  const [youtubeUploadType, setYoutubeUploadType] = useState<"video" | "short">("video");
   const [youtubePrivacy, setYoutubePrivacy] = useState<"public" | "unlisted" | "private">("public");
   const [youtubeCategory, setYoutubeCategory] = useState("22");
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState(false);
@@ -121,6 +122,7 @@ export default function UploadForm({ initialDateStr, onSuccess, onCancel }: Uplo
     setTitle("");
     setDescription("");
     setTagsInput("");
+    setYoutubeUploadType("video");
     setScheduleLater(!!initialDateStr);
     setPublishAt(initialDateStr ? `${initialDateStr}T09:00` : "");
     if (videoInputRef.current) videoInputRef.current.value = "";
@@ -162,6 +164,7 @@ export default function UploadForm({ initialDateStr, onSuccess, onCancel }: Uplo
           publishAt: scheduleLater && publishAt ? new Date(publishAt).toISOString() : null,
 
           targetYoutube,
+          youtubeUploadType,
           youtubePrivacyStatus: youtubePrivacy,
           youtubeCategoryId: youtubeCategory,
           youtubeMadeForKids,
@@ -316,6 +319,17 @@ export default function UploadForm({ initialDateStr, onSuccess, onCancel }: Uplo
           </label>
           {targetYoutube && (
             <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-600">Upload type</label>
+                <select
+                  value={youtubeUploadType}
+                  onChange={(e) => setYoutubeUploadType(e.target.value as typeof youtubeUploadType)}
+                  className={inputClass}
+                >
+                  <option value="video">Video</option>
+                  <option value="short">Short</option>
+                </select>
+              </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Privacy</label>
                 <select value={youtubePrivacy} onChange={(e) => setYoutubePrivacy(e.target.value as typeof youtubePrivacy)} className={inputClass}>
