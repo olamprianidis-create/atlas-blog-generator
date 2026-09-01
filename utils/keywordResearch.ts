@@ -86,7 +86,13 @@ export async function researchKeywords(
   topic: string,
   research: ResearchQuery[],
   userReferenceKeywords?: string,
-  preliminaryKeywords?: string
+  preliminaryKeywords?: string,
+  // Bumped on a user-initiated retry after a truncated response (see
+  // pages/api/research-keywords.ts) — normal calls stay tight (see the
+  // hard 20-keyword cap in the prompt below) so this shouldn't be needed
+  // often, but a broad/ambiguous topic can still occasionally overflow
+  // the default budget.
+  maxTokens: number = 8192
 ): Promise<KeywordResearchResult> {
   const referenceKeywords = parseReferenceKeywords(userReferenceKeywords);
   const primaryKeywords = parseReferenceKeywords(preliminaryKeywords);
@@ -119,7 +125,7 @@ User's reference keywords (keywords the user already had in mind, may be empty):
 User's primary/preliminary keywords (the main terms they want to primarily rank for, may be empty): ${primarySummary}${primaryInstruction}
 
 Do the following:
-1. Extract concrete long-tail keyword phrases (ideally 3-5 words) from the findings above. For each, classify:
+1. Extract AT MOST 15 concrete long-tail keyword phrases (ideally 3-5 words) from the findings above — quality over quantity, do not pad the list to reach 15. For each, classify:
    - source: one of "people_also_ask", "related_searches", "long_tail", "competitor" (whichever search it came from or most resembles)
    - intent: one of "informational", "commercial", "transactional"
    - ranking: 1-10 score for AI-search/SEO ranking potential (10 = best opportunity)
@@ -134,7 +140,7 @@ Respond with ONLY valid JSON in this exact shape, no markdown fences, no comment
 
   const analyzed = await generateJSON<
     Omit<KeywordResearchResult, "queriesRun">
-  >(prompt, mockValue, { maxTokens: 8192 });
+  >(prompt, mockValue, { maxTokens });
 
   return {
     queriesRun: research.map((r) => r.query),

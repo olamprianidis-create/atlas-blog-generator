@@ -233,7 +233,7 @@ export default function Home() {
     ];
   }
 
-  async function handleRunResearch() {
+  async function handleRunResearch(allowMoreTokens = false) {
     setIsResearching(true);
     setResearchError(null);
 
@@ -246,6 +246,7 @@ export default function Home() {
           prompt,
           userReferenceKeywords: referenceKeywords.trim() || undefined,
           preliminaryKeywords: preliminaryKeywords.trim() || undefined,
+          allowMoreTokens: allowMoreTokens || undefined,
         }),
       });
 
@@ -271,6 +272,15 @@ export default function Home() {
     } finally {
       setIsResearching(false);
     }
+  }
+
+  function handleRetryResearchWithMoreTokens() {
+    void handleRunResearch(true);
+  }
+
+  function handleContinueWithoutResearch() {
+    setResearchError(null);
+    void handleProceedToStep3();
   }
 
   function handleToggleEditKeywords() {
@@ -796,7 +806,9 @@ export default function Home() {
           keywordResearch={keywordResearchResult}
           isResearching={isResearching}
           researchError={researchError}
-          onRunResearch={handleRunResearch}
+          onRunResearch={() => handleRunResearch()}
+          onRetryResearchWithMoreTokens={handleRetryResearchWithMoreTokens}
+          onContinueWithoutResearch={handleContinueWithoutResearch}
           keywords={keywords}
           isEditingKeywords={isEditingKeywords}
           keywordsDraft={keywordsDraft}

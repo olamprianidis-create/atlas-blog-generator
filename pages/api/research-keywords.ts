@@ -26,11 +26,12 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt, userReferenceKeywords, preliminaryKeywords } = req.body as {
+  const { category, prompt, userReferenceKeywords, preliminaryKeywords, allowMoreTokens } = req.body as {
     category?: unknown;
     prompt?: unknown;
     userReferenceKeywords?: unknown;
     preliminaryKeywords?: unknown;
+    allowMoreTokens?: unknown;
   };
 
   if (category !== null && category !== undefined && !isCategory(category)) {
@@ -67,7 +68,11 @@ export default async function handler(
       searchTopic,
       research,
       typeof userReferenceKeywords === "string" ? userReferenceKeywords : undefined,
-      typeof preliminaryKeywords === "string" ? preliminaryKeywords : undefined
+      typeof preliminaryKeywords === "string" ? preliminaryKeywords : undefined,
+      // Default budget is tight on purpose (see the prompt's hard
+      // 15-keyword cap in utils/keywordResearch.ts) — this only kicks in
+      // when the user explicitly retries after a truncated response.
+      allowMoreTokens ? 16384 : undefined
     );
 
     return res.status(200).json({ research, keywordResearch, extractedTopic });

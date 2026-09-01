@@ -22,6 +22,8 @@ interface StepTwoImageKeywordsProps {
   isResearching: boolean;
   researchError: string | null;
   onRunResearch: () => void;
+  onRetryResearchWithMoreTokens: () => void;
+  onContinueWithoutResearch: () => void;
 
   keywords: KeywordItem[];
   isEditingKeywords: boolean;
@@ -81,6 +83,8 @@ export default function StepTwoImageKeywords({
   isResearching,
   researchError,
   onRunResearch,
+  onRetryResearchWithMoreTokens,
+  onContinueWithoutResearch,
   keywords,
   isEditingKeywords,
   keywordsDraft,
@@ -187,8 +191,31 @@ export default function StepTwoImageKeywords({
               {isResearching && <Spinner />}
               {isResearching ? "Researching..." : keywordResearch ? "Refresh Research" : "Research Keywords"}
             </button>
-            {researchError && <p className="text-xs text-red-700">{researchError}</p>}
           </div>
+          {researchError && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs text-red-700">{researchError}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {researchError.includes("truncated") && (
+                  <button
+                    type="button"
+                    onClick={onRetryResearchWithMoreTokens}
+                    disabled={isResearching}
+                    className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Retry with more tokens
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onContinueWithoutResearch}
+                  className="rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  Continue with workflow
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Section>
 
