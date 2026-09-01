@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
+import fs from "fs";
 import { getServiceClient } from "./supabase";
+import { cropVideoToVertical } from "./videoCrop";
 
 // Setup required in Google Cloud Console before this works:
 // 1. Create a project, enable "YouTube Data API v3".
@@ -134,9 +136,12 @@ export interface YoutubeUploadInput {
   privacyStatus: "public" | "unlisted" | "private";
   madeForKids: boolean;
   thumbnailUrl?: string;
-  // YouTube has no explicit "make this a Short" API flag — a video under
-  // 3 minutes is classified as a Short when its title or description
-  // contains "#Shorts". "short" appends that tag to the title below.
+  // YouTube's Shorts classification is based on the video's actual frame
+  // shape (vertical, 9:16-ish, under ~3 minutes) — not any upload flag or
+  // the "#Shorts" tag alone. Confirmed live: a 1920x1080 upload tagged
+  // "#Shorts" still landed in the regular Videos tab. So "short" both
+  // crops the source to vertical (see cropVideoToVertical) and appends
+  // the tag as a secondary signal on top of that.
   uploadType?: "video" | "short";
 }
 
@@ -144,56 +149,66 @@ export async function uploadVideoToYoutube(input: YoutubeUploadInput): Promise<s
   const auth = await getAuthorizedClient();
   const youtube = google.youtube({ version: "v3", auth });
 
-  const videoResponse = await fetch(input.videoUrl);
-  if (!videoResponse.ok || !videoResponse.body) {
-    throw new Error(`Couldn't fetch the video file from storage (${videoResponse.status}).`);
-  }
+  const isShort = input.uploadType === "short";
+  const cropped = isShort ? await cropVideoToVertical(input.videoUrl) : null;
 
-  // googleapis' upload path expects a Node.js Readable (it calls .pipe()
-  // internally) — fetch()'s response.body is a Web Streams API
-  // ReadableStream, which has no .pipe() method, hence "part.body.pipe is
-  // not a function". Readable.fromWeb() bridges the two.
-  const videoStream = Readable.fromWeb(videoResponse.body as import("stream/web").ReadableStream);
-
-  const title =
-    input.uploadType === "short" && !/#shorts/i.test(input.title) ? `${input.title} #Shorts` : input.title;
-
-  const insertResponse = await youtube.videos.insert({
-    part: ["snippet", "status"],
-    requestBody: {
-      snippet: {
-        title,
-        description: input.description || undefined,
-        tags: input.tags && input.tags.length > 0 ? input.tags : undefined,
-        categoryId: input.categoryId || undefined,
-      },
-      status: {
-        privacyStatus: input.privacyStatus,
-        selfDeclaredMadeForKids: input.madeForKids,
-      },
-    },
-    media: {
-      body: videoStream,
-    },
-  });
-
-  const videoId = insertResponse.data.id;
-  if (!videoId) {
-    throw new Error("YouTube didn't return a video ID after upload.");
-  }
-
-  if (input.thumbnailUrl) {
-    const thumbResponse = await fetch(input.thumbnailUrl);
-    if (thumbResponse.ok && thumbResponse.body) {
-      const thumbStream = Readable.fromWeb(thumbResponse.body as import("stream/web").ReadableStream);
-      await youtube.thumbnails.set({
-        videoId,
-        media: { body: thumbStream },
-      });
+  let videoStream: Readable;
+  if (cropped) {
+    videoStream = fs.createReadStream(cropped.filePath);
+  } else {
+    const videoResponse = await fetch(input.videoUrl);
+    if (!videoResponse.ok || !videoResponse.body) {
+      throw new Error(`Couldn't fetch the video file from storage (${videoResponse.status}).`);
     }
+    // googleapis' upload path expects a Node.js Readable (it calls .pipe()
+    // internally) — fetch()'s response.body is a Web Streams API
+    // ReadableStream, which has no .pipe() method, hence "part.body.pipe
+    // is not a function". Readable.fromWeb() bridges the two.
+    videoStream = Readable.fromWeb(videoResponse.body as import("stream/web").ReadableStream);
   }
 
-  return videoId;
+  const title = isShort && !/#shorts/i.test(input.title) ? `${input.title} #Shorts` : input.title;
+
+  try {
+    const insertResponse = await youtube.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: {
+          title,
+          description: input.description || undefined,
+          tags: input.tags && input.tags.length > 0 ? input.tags : undefined,
+          categoryId: input.categoryId || undefined,
+        },
+        status: {
+          privacyStatus: input.privacyStatus,
+          selfDeclaredMadeForKids: input.madeForKids,
+        },
+      },
+      media: {
+        body: videoStream,
+      },
+    });
+
+    const videoId = insertResponse.data.id;
+    if (!videoId) {
+      throw new Error("YouTube didn't return a video ID after upload.");
+    }
+
+    if (input.thumbnailUrl) {
+      const thumbResponse = await fetch(input.thumbnailUrl);
+      if (thumbResponse.ok && thumbResponse.body) {
+        const thumbStream = Readable.fromWeb(thumbResponse.body as import("stream/web").ReadableStream);
+        await youtube.thumbnails.set({
+          videoId,
+          media: { body: thumbStream },
+        });
+      }
+    }
+
+    return videoId;
+  } finally {
+    if (cropped) await cropped.cleanup();
+  }
 }
 
 export async function deleteVideoFromYoutube(videoId: string): Promise<void> {

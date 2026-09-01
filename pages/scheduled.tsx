@@ -9,6 +9,7 @@ interface ScheduledArticleItem {
   category: string;
   publish_date: string | null;
   meta_description: string | null;
+  linkedin_auto_share: boolean;
 }
 
 function categoryLabel(value: string) {
@@ -93,7 +94,7 @@ export default function ScheduledPage() {
                       <p className="truncate text-sm font-semibold text-slate-900">{article.title}</p>
                       <p className="mt-1 flex items-center text-xs text-slate-500">
                         {categoryLabel(article.category)} · Publishes {formatPublishDate(article.publish_date)}
-                        {linkedinConnected && <LinkedInScheduledBadge />}
+                        {linkedinConnected && article.linkedin_auto_share && <LinkedInScheduledBadge />}
                       </p>
                     </div>
                     <span className="ml-4 shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">

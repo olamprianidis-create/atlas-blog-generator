@@ -4,5 +4,13 @@
       "path": "/api/cron/publish-scheduled",
       "schedule": "13 7 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "pages/api/uploads/index.ts": {
+      "maxDuration": 60
+    },
+    "pages/api/cron/publish-scheduled.ts": {
+      "maxDuration": 60
+    }
+  }
 }

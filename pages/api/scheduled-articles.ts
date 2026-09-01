@@ -8,6 +8,7 @@ interface ScheduledArticleItem {
   publish_date: string | null;
   meta_description: string | null;
   image_url: string | null;
+  linkedin_auto_share: boolean;
 }
 
 export default async function handler(
@@ -21,11 +22,29 @@ export default async function handler(
 
   try {
     const supabase = getServiceClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("scheduled_articles")
-      .select("id, title, category, publish_date, meta_description, image_url")
+      .select("id, title, category, publish_date, meta_description, image_url, linkedin_auto_share")
       .eq("status", "scheduled")
       .order("publish_date", { ascending: true });
+
+    if (error) {
+      // linkedin_auto_share is an optional column (0015_linkedin_auto_share.sql)
+      // — degrade gracefully to defaulting every row to true (the same
+      // behavior every article had before that migration) if it hasn't
+      // been run yet.
+      console.warn(
+        "scheduled_articles list with linkedin_auto_share failed, retrying without it (run supabase/migrations/0015_linkedin_auto_share.sql):",
+        error.message
+      );
+      const fallback = await supabase
+        .from("scheduled_articles")
+        .select("id, title, category, publish_date, meta_description, image_url")
+        .eq("status", "scheduled")
+        .order("publish_date", { ascending: true });
+      data = (fallback.data ?? []).map((row) => ({ ...row, linkedin_auto_share: true }));
+      error = fallback.error;
+    }
 
     if (error) throw error;
     return res.status(200).json((data ?? []) as ScheduledArticleItem[]);
