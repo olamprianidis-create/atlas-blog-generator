@@ -72,7 +72,7 @@ async function getAuthorizedClient() {
   const db = getServiceClient();
   const { data, error } = await db
     .from("platform_connections")
-    .select("access_token, refresh_token")
+    .select("access_token, refresh_token, expires_at")
     .eq("platform", "youtube")
     .maybeSingle();
 
@@ -85,6 +85,10 @@ async function getAuthorizedClient() {
   client.setCredentials({
     access_token: data.access_token,
     refresh_token: data.refresh_token,
+    // Without expiry_date, isTokenExpiring() assumes the token is never
+    // expiring and getAccessToken() below would just hand back the stale
+    // token as-is — this is what actually lets it detect staleness.
+    expiry_date: data.expires_at ? new Date(data.expires_at).getTime() : undefined,
   });
 
   // Persist a refreshed access token so the next call doesn't need to
@@ -100,6 +104,17 @@ async function getAuthorizedClient() {
       })
       .eq("platform", "youtube");
   });
+
+  // google-auth-library's automatic retry-on-401 (which would normally
+  // refresh a stale access token and retry the request) explicitly skips
+  // any request whose body is a Readable stream — see oauth2client.js's
+  // requestAsync: `isReadableStream` disables `mayRequireRefresh`. Video
+  // uploads always send a Readable stream body (see uploadVideoToYoutube
+  // below), so a stale access token would otherwise fail with "invalid
+  // authentication credentials" on every upload with no retry. Forcing a
+  // refresh here — before any request is made — avoids relying on that
+  // disabled retry path.
+  await client.getAccessToken();
 
   return client;
 }
