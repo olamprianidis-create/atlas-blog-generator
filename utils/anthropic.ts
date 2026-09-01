@@ -161,6 +161,45 @@ export async function webSearch(
   });
 }
 
+// Transcribes/describes an uploaded reference image (PNG/JPG) into plain
+// text — chart data, screenshotted text, infographic content, etc. — so
+// it can be woven into research context the same way an extracted PDF/
+// docx's text is (see utils/documentExtraction.ts). Uses the cheaper
+// classification-tier model since this is transcription, not reasoning;
+// a single image costs roughly the same as reading a page of text (image
+// tokens scale with pixel count, not a flat per-call fee), and maxTokens
+// is capped so one image can't balloon the bill.
+export async function describeImage(base64Data: string, mediaType: string, filename: string): Promise<string> {
+  if (MOCK_MODE) {
+    return `[MOCK] Placeholder description of uploaded image "${filename}" — no live vision call was made.`;
+  }
+
+  return withRetry(async () => {
+    const response = await client!.messages.create({
+      model: CLASSIFICATION_MODEL,
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType as "image/png" | "image/jpeg", data: base64Data },
+            },
+            {
+              type: "text",
+              text: "Transcribe and describe everything relevant in this image for use as research material for a blog article: any visible text verbatim, chart/graph data and labels, statistics, and a plain description of what the image shows. Be concrete and specific, not vague. Plain text only, no markdown formatting.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const textBlock = response.content.find((block) => block.type === "text");
+    return textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+  });
+}
+
 // Like generateText, but throws a clear error if the response got cut
 // off by hitting max_tokens instead of silently returning partial text.
 // Useful for callers that need a complete response to parse (JSON,

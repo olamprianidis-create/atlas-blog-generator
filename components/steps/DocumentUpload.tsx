@@ -12,7 +12,7 @@ interface DocumentUploadProps {
   onChange: (documents: UploadedDocument[]) => void;
 }
 
-const ACCEPT = ".pdf,.docx,.txt,.md,.csv";
+const ACCEPT = ".pdf,.docx,.txt,.md,.csv,.png,.jpg,.jpeg";
 
 export default function DocumentUpload({ documents, onChange }: DocumentUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -71,7 +71,7 @@ export default function DocumentUpload({ documents, onChange }: DocumentUploadPr
         >
           {isProcessing ? "Reading document…" : "Upload documents"}
         </button>
-        <span className="text-xs text-slate-400">PDF, Word (.docx), text/Markdown, or CSV</span>
+        <span className="text-xs text-slate-400">PDF, Word (.docx), text/Markdown, CSV, PNG, or JPG</span>
       </div>
 
       <input

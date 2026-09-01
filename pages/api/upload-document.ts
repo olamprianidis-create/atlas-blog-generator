@@ -22,6 +22,8 @@ const ALLOWED_CONTENT_TYPES = [
   "application/vnd.ms-excel",
   "application/csv",
   "application/octet-stream",
+  "image/png",
+  "image/jpeg",
 ];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

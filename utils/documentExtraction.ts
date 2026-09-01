@@ -4,7 +4,7 @@
 // utils/referenceDocuments.ts for how that extracted text is turned into
 // research entries the outline/article generation prompts consume.
 
-export type SupportedDocumentExtension = "pdf" | "docx" | "txt" | "md" | "csv";
+export type SupportedDocumentExtension = "pdf" | "docx" | "txt" | "md" | "csv" | "png" | "jpg";
 
 const EXTENSION_MAP: Record<string, SupportedDocumentExtension> = {
   pdf: "pdf",
@@ -13,6 +13,14 @@ const EXTENSION_MAP: Record<string, SupportedDocumentExtension> = {
   md: "md",
   markdown: "md",
   csv: "csv",
+  png: "png",
+  jpg: "jpg",
+  jpeg: "jpg",
+};
+
+const IMAGE_MEDIA_TYPES: Record<"png" | "jpg", string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
 };
 
 export function detectDocumentExtension(filename: string): SupportedDocumentExtension | null {
@@ -27,11 +35,18 @@ const MAX_EXTRACTED_CHARS = 20000;
 
 export async function extractTextFromDocument(
   buffer: Buffer,
-  extension: SupportedDocumentExtension
+  extension: SupportedDocumentExtension,
+  filename: string = `file.${extension}`
 ): Promise<string> {
   let text: string;
 
   switch (extension) {
+    case "png":
+    case "jpg": {
+      const { describeImage } = await import("./anthropic");
+      text = await describeImage(buffer.toString("base64"), IMAGE_MEDIA_TYPES[extension], filename);
+      break;
+    }
     case "pdf": {
       const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: buffer });

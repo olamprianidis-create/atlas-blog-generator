@@ -27,7 +27,7 @@ export default async function handler(
   const extension = detectDocumentExtension(filename);
   if (!extension) {
     return res.status(400).json({
-      error: "Unsupported file type — upload a PDF, Word (.docx), text/Markdown, or CSV file.",
+      error: "Unsupported file type — upload a PDF, Word (.docx), text/Markdown, CSV, PNG, or JPG file.",
     });
   }
 
@@ -38,7 +38,7 @@ export default async function handler(
     }
 
     const buffer = Buffer.from(await fileResponse.arrayBuffer());
-    const text = await extractTextFromDocument(buffer, extension);
+    const text = await extractTextFromDocument(buffer, extension, filename);
 
     if (!text) {
       return res.status(422).json({ error: "No readable text was found in this file." });
