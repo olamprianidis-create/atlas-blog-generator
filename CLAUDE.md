@@ -339,6 +339,12 @@ Step 1 has an optional "Author" field — a searchable dropdown of real ATLAS me
 - **`author_user_id` is an optional column** (`supabase/migrations/0009_article_author.sql`, not yet run as of 2026-08-27 — **run this migration manually in the Supabase SQL editor**, no CLI/DB-URL access to apply it from this environment). Both the insert and update paths in `schedule-article.ts`, and the read in `scheduled-articles/[id].ts`, degrade gracefully (retry without the column) if it's missing — same convention as `image_url`.
 - **The actual Author display box lives on the ATLAS Website**, not here — `src/app/article/[slug]/page.tsx` there resolves `author_user_id` against its own `User`/`Profile` tables at render time (`getArticleAuthor()` in its `src/lib/db.ts`) rather than storing a denormalized name/photo copy, so the displayed name/photo/join-date is always current even if the member edits their profile later. Shows photo, full name, "Member Since" (date + day count), and a black pill "View Profile" button linking to `/members/{slug}` — which itself respects that member's PRIVATE/PUBLIC visibility setting (see the Website's own CLAUDE.md), so the button redirects a logged-out reader to login for a Private author.
 
+## Destructive actions require explicit approval first
+
+**Never delete anything — files, database rows, Blob storage objects, external-platform content (YouTube videos, LinkedIn posts, etc.), env vars — without the user explicitly approving that specific deletion first.** This applies even to things that look obviously safe to delete (orphaned files, "duplicate" data, disposable-looking test rows) — verify the actual match/query logic against real data before proposing a deletion, and always show the user exactly what would be deleted and ask before running it, rather than deleting first and reporting after.
+
+This rule exists because of a real incident (2026-09-02): a "cleanup orphaned Blob storage" script had a URL-encoding bug (compared percent-encoded `video_url` paths against raw pathnames from Blob's `list()`, so every legitimate match failed) and, run without asking first, deleted the source video files for 8 scheduled-but-not-yet-published uploads — those videos had to be manually re-uploaded from the admin's local originals. A quick sanity check against real data before running it (or just asking first) would have caught it.
+
 ## Git Conventions
 
 - Branch naming: `feature/blog-generator`, `fix/supabase-sync`
