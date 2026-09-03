@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { publishArticleById } from "../../../utils/publish";
 import { publishVideoUploadById } from "../../../utils/publishVideo";
+import { cleanupOldUploads } from "../../../utils/cleanupOldUploads";
 
 interface CronResponse {
   checked: number;
@@ -10,6 +11,7 @@ interface CronResponse {
   videosChecked: number;
   videosPublished: number;
   videoResults: { uploadId: string; success: boolean; youtubeError?: string; tiktokError?: string }[];
+  uploadsDeleted: number;
 }
 
 // Vercel Cron sends `Authorization: Bearer $CRON_SECRET` automatically
@@ -96,6 +98,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : `[cron/publish-scheduled] No videos ready (${videoResults.length} checked)`
   );
 
+  // Storage cleanup: video_uploads rows that finished publishing
+  // successfully to every platform they targeted, a week or more ago —
+  // see utils/cleanupOldUploads.ts for the exact eligibility rules (a
+  // failed publish is deliberately never auto-deleted, since its source
+  // file may still be needed for a retry).
+  let uploadsDeletedCount = 0;
+  try {
+    const deleted = await cleanupOldUploads();
+    uploadsDeletedCount = deleted.length;
+    if (deleted.length > 0) {
+      console.log(
+        `[cron/publish-scheduled] Deleted ${deleted.length} upload(s) older than 7 days: ${deleted.map((d) => d.title).join(", ")}`
+      );
+    }
+  } catch (cleanupError) {
+    console.error("[cron/publish-scheduled] upload cleanup failed:", cleanupError);
+  }
+
   return res.status(200).json({
     checked: results.length,
     published: publishedCount,
@@ -103,5 +123,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     videosChecked: videoResults.length,
     videosPublished: videosPublishedCount,
     videoResults,
+    uploadsDeleted: uploadsDeletedCount,
   });
 }
