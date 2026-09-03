@@ -119,7 +119,10 @@ const CONTENT_ITEMS: NavItem[] = [
 const STANDALONE_ITEMS: NavItem[] = [
   { href: "/calendar", label: "Content Calendar", icon: ICONS.calendar },
   { href: "/uploads", label: "Uploads", icon: ICONS.uploads },
-  { href: "/discord", label: "Discord", icon: ICONS.discord },
+  // "Discord" (pages/discord.tsx) hidden from nav 2026-09-03 at the
+  // user's request — code untouched, just not linked from the sidebar.
+  // Still reachable at /discord by direct URL; the weekly-reminder cron
+  // (pages/api/cron/weekly-reminder.ts) is unaffected either way.
 ];
 
 const STATISTICS_ITEMS: NavItem[] = [
