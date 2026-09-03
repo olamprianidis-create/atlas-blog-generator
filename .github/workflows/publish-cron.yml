@@ -30,3 +30,11 @@ jobs:
           curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/weekly-reminder" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
+      # Welcomes any Discord member who joined since the last check (see
+      # pages/api/cron/welcome-new-members.ts) — up to a ~10 min delay
+      # after joining, same tradeoff as the reminders above.
+      - name: Trigger welcome-new-members endpoint
+        run: |
+          curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/welcome-new-members" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"

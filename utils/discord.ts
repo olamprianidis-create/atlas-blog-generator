@@ -96,3 +96,62 @@ export async function autoPostToDiscord(content: string): Promise<void> {
   if (!data?.channel_id) return;
   await postToDiscord(data.channel_id, content);
 }
+
+export interface GuildMember {
+  discordUserId: string;
+  username: string;
+  isBot: boolean;
+}
+
+// Every current member of the ATLAS Network guild — paginates in
+// batches of 1000 (Discord's max per request) via the `after` cursor,
+// though this server is nowhere near that size yet. Requires the bot's
+// Server Members Intent (Developer Portal > Bot > Privileged Gateway
+// Intents), same as the Website's guild-membership check.
+export async function listGuildMembers(): Promise<GuildMember[]> {
+  const token = requireToken();
+  const guildId = process.env.DISCORD_GUILD_ID;
+  if (!guildId) throw new Error("Discord isn't configured yet (missing DISCORD_GUILD_ID).");
+
+  const members: GuildMember[] = [];
+  let after = "0";
+
+  while (true) {
+    const response = await fetch(
+      `${API_BASE}/guilds/${guildId}/members?limit=1000&after=${after}`,
+      { headers: { Authorization: `Bot ${token}` } }
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Discord guild members fetch failed (${response.status}): ${body}`);
+    }
+    const page = (await response.json()) as { user: { id: string; username: string; bot?: boolean } }[];
+    if (page.length === 0) break;
+
+    for (const m of page) {
+      members.push({ discordUserId: m.user.id, username: m.user.username, isBot: !!m.user.bot });
+    }
+    after = page[page.length - 1].user.id;
+    if (page.length < 1000) break;
+  }
+
+  return members;
+}
+
+// Powers pages/api/cron/welcome-new-members.ts — which real members have
+// already had a welcome message posted for them (see the
+// discord_welcomed_members table, 0017_discord_welcomed_members.sql).
+export async function listWelcomedMemberIds(): Promise<Set<string>> {
+  const db = getServiceClient();
+  const { data, error } = await db.from("discord_welcomed_members").select("discord_user_id");
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((row) => row.discord_user_id as string));
+}
+
+export async function markMemberWelcomed(discordUserId: string): Promise<void> {
+  const db = getServiceClient();
+  const { error } = await db
+    .from("discord_welcomed_members")
+    .upsert({ discord_user_id: discordUserId }, { onConflict: "discord_user_id" });
+  if (error) throw new Error(error.message);
+}
