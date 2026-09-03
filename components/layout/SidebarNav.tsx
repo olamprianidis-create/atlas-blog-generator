@@ -123,6 +123,7 @@ const STANDALONE_ITEMS: NavItem[] = [
 ];
 
 const STATISTICS_ITEMS: NavItem[] = [
+  { href: "/statistics/members", label: "Members", icon: ICONS.statistics },
   { href: "/statistics/applicants", label: "Applicants", icon: ICONS.statistics },
   { href: "/statistics/survey", label: "New Member Survey", icon: ICONS.statistics },
 ];

@@ -105,3 +105,28 @@ export async function listAtlasMembersForAuthorPicker(): Promise<AtlasMemberOpti
     profileImageUrl: row.profileImageUrl,
   }));
 }
+
+export interface MemberStatisticsRow {
+  id: string;
+  fullName: string;
+  email: string;
+  memberNumber: number | null;
+}
+
+// Powers Statistics > Members — every real member (test accounts excluded,
+// same convention as the Author picker above), ordered by signup date so
+// the table reads in the order people actually joined.
+export async function listMembersForStatistics(): Promise<MemberStatisticsRow[]> {
+  const { rows } = await getPool().query(
+    `SELECT id, "firstName", "lastName", email, "memberNumber"
+     FROM "User"
+     WHERE "isTestAccount" = false
+     ORDER BY "createdAt" ASC`
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    fullName: `${row.firstName} ${row.lastName}`.trim(),
+    email: row.email,
+    memberNumber: row.memberNumber,
+  }));
+}
