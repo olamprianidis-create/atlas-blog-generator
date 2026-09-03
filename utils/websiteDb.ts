@@ -65,6 +65,22 @@ export async function listOnboardingSurveyResponses(): Promise<OnboardingSurveyR
   return rows;
 }
 
+export interface WeeklyMeeting {
+  title: string;
+  zoomUrl: string;
+}
+
+// Backs the Monday Discord call reminders (utils/discord.ts's caller in
+// pages/api/cron/weekly-reminder.ts) — reads the same Zoom link/title the
+// admin sets on the Website's Weekly Meeting settings page, so there's one
+// place to update the link rather than two.
+export async function getWeeklyMeeting(): Promise<WeeklyMeeting | null> {
+  const { rows } = await getPool().query(
+    `SELECT title, "zoomUrl" FROM "WeeklyMeeting" LIMIT 1`
+  );
+  return rows[0] ?? null;
+}
+
 export interface AtlasMemberOption {
   id: string;
   fullName: string;

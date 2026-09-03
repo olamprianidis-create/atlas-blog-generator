@@ -21,3 +21,12 @@ jobs:
           curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/publish-scheduled" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
+      # Monday 5:30 PM / 6:00 PM PT Discord call reminders — the endpoint
+      # checks the real current Pacific time itself and no-ops outside
+      # those two windows, so this same every-10-minutes ping is what
+      # drives it (see pages/api/cron/weekly-reminder.ts for why).
+      - name: Trigger weekly-reminder endpoint
+        run: |
+          curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/weekly-reminder" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json"
