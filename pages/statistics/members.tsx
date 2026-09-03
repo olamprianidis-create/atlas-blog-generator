@@ -5,7 +5,7 @@ interface MemberRow {
   id: string;
   fullName: string;
   email: string;
-  memberNumber: number | null;
+  phone: string;
 }
 
 export default function MembersPage() {
@@ -55,7 +55,7 @@ export default function MembersPage() {
                       Email
                     </th>
                     <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Number
+                      Phone
                     </th>
                   </tr>
                 </thead>
@@ -64,7 +64,7 @@ export default function MembersPage() {
                     <tr key={member.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-5 py-3 font-medium text-slate-900">{member.fullName}</td>
                       <td className="px-5 py-3 text-slate-600">{member.email}</td>
-                      <td className="px-5 py-3 text-slate-600">{member.memberNumber ?? "—"}</td>
+                      <td className="px-5 py-3 text-slate-600">{member.phone}</td>
                     </tr>
                   ))}
                 </tbody>

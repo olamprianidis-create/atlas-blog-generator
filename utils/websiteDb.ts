@@ -110,7 +110,7 @@ export interface MemberStatisticsRow {
   id: string;
   fullName: string;
   email: string;
-  memberNumber: number | null;
+  phone: string;
 }
 
 // Powers Statistics > Members — every real member (test accounts excluded,
@@ -118,7 +118,7 @@ export interface MemberStatisticsRow {
 // the table reads in the order people actually joined.
 export async function listMembersForStatistics(): Promise<MemberStatisticsRow[]> {
   const { rows } = await getPool().query(
-    `SELECT id, "firstName", "lastName", email, "memberNumber"
+    `SELECT id, "firstName", "lastName", email, phone
      FROM "User"
      WHERE "isTestAccount" = false
      ORDER BY "createdAt" ASC`
@@ -127,6 +127,6 @@ export async function listMembersForStatistics(): Promise<MemberStatisticsRow[]>
     id: row.id,
     fullName: `${row.firstName} ${row.lastName}`.trim(),
     email: row.email,
-    memberNumber: row.memberNumber,
+    phone: row.phone,
   }));
 }
