@@ -320,15 +320,33 @@ export default function UploadForm({ initialDateStr, onSuccess, onCancel }: Uplo
           {targetYoutube && (
             <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-600">Upload type</label>
-                <select
-                  value={youtubeUploadType}
-                  onChange={(e) => setYoutubeUploadType(e.target.value as typeof youtubeUploadType)}
-                  className={inputClass}
-                >
-                  <option value="video">Video</option>
-                  <option value="short">Short</option>
-                </select>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Upload type — check this every time
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setYoutubeUploadType("video")}
+                    className={`rounded-md border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                      youtubeUploadType === "video"
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    Video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setYoutubeUploadType("short")}
+                    className={`rounded-md border-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                      youtubeUploadType === "short"
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                    }`}
+                  >
+                    Short
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Privacy</label>
