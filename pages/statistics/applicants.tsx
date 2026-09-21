@@ -5,11 +5,12 @@ interface ApplicantItem {
   id: string;
   fullName: string;
   invitedBy: string;
-  reason: string;
-  availability: string;
+  howHeard: string;
+  hasBusiness: boolean;
+  alignsWithMission: boolean | null;
+  legacy: string;
   email: string;
   phone: string;
-  whyAdmit: string;
   createdAt: string;
 }
 
@@ -77,21 +78,26 @@ export default function ApplicantsPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Why Do You Want To Join?
+                        How Did You Hear About ATLAS Network?
                       </p>
-                      <p>{applicant.reason}</p>
+                      <p>{applicant.howHeard}</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Current Availability
+                        Has A Business?
                       </p>
-                      <p>{applicant.availability}</p>
+                      <p>
+                        {applicant.hasBusiness ? "Yes" : "No"}
+                        {!applicant.hasBusiness && applicant.alignsWithMission !== null && (
+                          <> — Aligns with mission: {applicant.alignsWithMission ? "Yes" : "No"}</>
+                        )}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Why Should They Be Admitted?
+                        Legacy (100 years from today)
                       </p>
-                      <p>{applicant.whyAdmit}</p>
+                      <p>{applicant.legacy}</p>
                     </div>
                   </div>
                 </li>

@@ -23,17 +23,21 @@ export interface MembershipRequest {
   id: string;
   fullName: string;
   invitedBy: string;
-  reason: string;
-  availability: string;
+  howHeard: string;
+  hasBusiness: boolean;
+  alignsWithMission: boolean | null;
+  legacy: string;
   email: string;
   phone: string;
-  whyAdmit: string;
   createdAt: string;
 }
 
+// Questions redesigned 2026-09-03 (see the Website's
+// src/app/join/page.tsx) — reason/availability/whyAdmit were replaced
+// with howHeard/hasBusiness/alignsWithMission/legacy.
 export async function listMembershipRequests(): Promise<MembershipRequest[]> {
   const { rows } = await getPool().query(
-    `SELECT id, "fullName", "invitedBy", reason, availability, email, phone, "whyAdmit", "createdAt"
+    `SELECT id, "fullName", "invitedBy", "howHeard", "hasBusiness", "alignsWithMission", legacy, email, phone, "createdAt"
      FROM "MembershipRequest"
      ORDER BY "createdAt" DESC`
   );
