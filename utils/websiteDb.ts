@@ -3,8 +3,8 @@ import { Pool } from "pg";
 // Read-only connection to the ATLAS Website's Neon Postgres database
 // (a separate project from this app's own Supabase database) — powers
 // the Statistics pages, which surface data that's actually generated
-// and stored by the Website app (join requests, onboarding survey
-// answers). Never write through this connection from here.
+// and stored by the Website app (onboarding survey answers). Never write
+// through this connection from here.
 let pool: Pool | null = null;
 
 function getPool(): Pool {
@@ -17,31 +17,6 @@ function getPool(): Pool {
     pool = new Pool({ connectionString });
   }
   return pool;
-}
-
-export interface MembershipRequest {
-  id: string;
-  fullName: string;
-  invitedBy: string;
-  howHeard: string;
-  hasBusiness: boolean;
-  alignsWithMission: boolean | null;
-  legacy: string;
-  email: string;
-  phone: string;
-  createdAt: string;
-}
-
-// Questions redesigned 2026-09-03 (see the Website's
-// src/app/join/page.tsx) — reason/availability/whyAdmit were replaced
-// with howHeard/hasBusiness/alignsWithMission/legacy.
-export async function listMembershipRequests(): Promise<MembershipRequest[]> {
-  const { rows } = await getPool().query(
-    `SELECT id, "fullName", "invitedBy", "howHeard", "hasBusiness", "alignsWithMission", legacy, email, phone, "createdAt"
-     FROM "MembershipRequest"
-     ORDER BY "createdAt" DESC`
-  );
-  return rows;
 }
 
 export interface OnboardingSurveyResponse {

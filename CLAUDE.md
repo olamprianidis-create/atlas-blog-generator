@@ -326,11 +326,12 @@ None of these auto-posting integrations work until their developer-portal app ex
 
 ## Statistics (`pages/statistics/`)
 
-Two admin-only report pages reading from the **ATLAS Website's** database, not this app's own Supabase:
-- **Applicants** (`/statistics/applicants`) — public "Join The Network" requests submitted on atlasnetwork.club (`MembershipRequest` table).
+Admin-only report pages reading from the **ATLAS Website's** database, not this app's own Supabase:
 - **New Member Survey** (`/statistics/survey`) — the 3-question "Your Thoughts" answers from the Website's post-signup onboarding flow (`OnboardingResponse` table, joined to `User`), filtered to the last 90 days.
 
-Both go through `utils/websiteDb.ts`, a read-only `pg` `Pool` against `WEBSITE_DATABASE_URL` — the **same Neon connection string** as the ATLAS Website project's `DATABASE_URL`, kept as a separate env var here (set in both `.env.local` and Vercel production/preview) since these are two independent Vercel projects. Never write through this connection — if either dataset ever needs a write path from this app, add a real API route on the Website instead of writing directly to its DB from here. The Website itself has no UI for either dataset anymore (no `/results` page there) — this is the only place they're viewed.
+Goes through `utils/websiteDb.ts`, a read-only `pg` `Pool` against `WEBSITE_DATABASE_URL` — the **same Neon connection string** as the ATLAS Website project's `DATABASE_URL`, kept as a separate env var here (set in both `.env.local` and Vercel production/preview) since these are two independent Vercel projects. Never write through this connection — if this dataset ever needs a write path from this app, add a real API route on the Website instead of writing directly to its DB from here.
+
+**Applicants page removed 2026-09-21** — the standalone "Join The Network" request form/table (`MembershipRequest`) was merged directly into the Website's signup flow (those questions are now just part of `User`), so there's no separate applicant dataset to report on anymore. `/statistics/applicants`, its API route, and `listMembershipRequests()` in `utils/websiteDb.ts` were deleted.
 
 ## Author picker (Step 1, `components/steps/AuthorPicker.tsx`, `pages/api/authors.ts`)
 
