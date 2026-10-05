@@ -98,6 +98,15 @@ const ICONS = {
       strokeLinejoin="round"
     />
   ),
+  contacts: iconWrapper(
+    <path
+      d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M5 20a7 7 0 0 1 14 0"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
   expand: iconWrapper(
     <path
       d="M15 5l7 7-7 7 M4 5l7 7-7 7"
@@ -109,11 +118,15 @@ const ICONS = {
   ),
 };
 
+const EMAIL_ITEMS: NavItem[] = [
+  { href: "/contacts", label: "Contacts", icon: ICONS.contacts },
+];
+
 const CONTENT_ITEMS: NavItem[] = [
+  { href: "/drafts", label: "Drafts", icon: ICONS.drafts },
   { href: "/", label: "Generator", icon: ICONS.generator },
   { href: "/scheduled", label: "Scheduled", icon: ICONS.scheduled },
   { href: "/published", label: "Published", icon: ICONS.published },
-  { href: "/drafts", label: "Drafts", icon: ICONS.drafts },
 ];
 
 const STANDALONE_ITEMS: NavItem[] = [
@@ -136,6 +149,7 @@ const COLLAPSED_STORAGE_KEY = "statAtlasSidebarCollapsed";
 const SECTIONS_STORAGE_KEY = "statAtlasSidebarClosedSections";
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
+  { title: "Email", items: EMAIL_ITEMS },
   { title: "Blog", items: CONTENT_ITEMS },
   { title: "Publishing", items: STANDALONE_ITEMS },
   { title: "Statistics", items: STATISTICS_ITEMS },
