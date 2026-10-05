@@ -152,7 +152,7 @@ function SectionLabel({ children, collapsed }: { children: ReactNode; collapsed:
     return <div className="mx-3 mb-1 mt-5 border-t border-slate-800 first:mt-0" />;
   }
   return (
-    <p className="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 first:mt-0">
+    <p className="mb-1.5 mt-6 px-3 text-sm font-bold uppercase tracking-wide text-white first:mt-0">
       {children}
     </p>
   );
@@ -196,7 +196,7 @@ export default function SidebarNav() {
       </Link>
 
       <nav className="flex-1 overflow-y-auto overflow-x-hidden">
-        <SectionLabel collapsed={collapsed}>Content</SectionLabel>
+        <SectionLabel collapsed={collapsed}>Blog</SectionLabel>
         <div className="flex flex-col gap-1">
           {CONTENT_ITEMS.map((item) => (
             <NavLink
