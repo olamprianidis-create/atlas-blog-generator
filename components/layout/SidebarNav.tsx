@@ -131,6 +131,15 @@ const STATISTICS_ITEMS: NavItem[] = [
 ];
 
 const COLLAPSED_STORAGE_KEY = "statAtlasSidebarCollapsed";
+// Per-section open/closed state, persisted the same way as the sidebar's
+// own collapsed state (see the comment in SidebarNav below).
+const SECTIONS_STORAGE_KEY = "statAtlasSidebarClosedSections";
+
+const SECTIONS: { title: string; items: NavItem[] }[] = [
+  { title: "Blog", items: CONTENT_ITEMS },
+  { title: "Publishing", items: STANDALONE_ITEMS },
+  { title: "Statistics", items: STATISTICS_ITEMS },
+];
 
 function NavLink({ item, isActive, collapsed }: { item: NavItem; isActive: boolean; collapsed: boolean }) {
   return (
@@ -147,20 +156,65 @@ function NavLink({ item, isActive, collapsed }: { item: NavItem; isActive: boole
   );
 }
 
-function SectionLabel({ children, collapsed }: { children: ReactNode; collapsed: boolean }) {
-  if (collapsed) {
-    return <div className="mx-3 mb-1 mt-5 border-t border-slate-800 first:mt-0" />;
-  }
+function NavSection({
+  title,
+  items,
+  sidebarCollapsed,
+  open,
+  onToggle,
+  pathname,
+}: {
+  title: string;
+  items: NavItem[];
+  sidebarCollapsed: boolean;
+  open: boolean;
+  onToggle: () => void;
+  pathname: string;
+}) {
+  // In the icon-only sidebar there's no title to click, so every section's
+  // items always show (just separated by a divider) regardless of `open`.
+  const showItems = sidebarCollapsed || open;
   return (
-    <p className="mb-1.5 mt-6 px-3 text-sm font-bold uppercase tracking-wide text-white first:mt-0">
-      {children}
-    </p>
+    <div className="mt-6 first:mt-0">
+      {sidebarCollapsed ? (
+        <div className="mx-3 mb-1 border-t border-slate-800" />
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="mb-1.5 flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-800"
+        >
+          <span>{title}</span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            className={`h-4 w-4 shrink-0 transition-transform duration-200 ${open ? "rotate-0" : "-rotate-90"}`}
+          >
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      {showItems && (
+        <div className="flex flex-col gap-1">
+          {items.map((item) => (
+            <NavLink
+              key={item.href}
+              item={item}
+              isActive={pathname === item.href}
+              collapsed={sidebarCollapsed}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function SidebarNav() {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [closedSections, setClosedSections] = useState<string[]>([]);
 
   // Every page mounts its own <AppLayout>/<SidebarNav> (Pages Router, no
   // shared persistent layout), so React state alone wouldn't survive
@@ -168,7 +222,21 @@ export default function SidebarNav() {
   // instead, read on mount so it stays consistent across the app.
   useEffect(() => {
     setCollapsed(window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true");
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(SECTIONS_STORAGE_KEY) ?? "[]");
+      if (Array.isArray(stored)) setClosedSections(stored);
+    } catch {
+      // Corrupt value — fall back to every section open.
+    }
   }, []);
+
+  function toggleSection(title: string) {
+    setClosedSections((current) => {
+      const next = current.includes(title) ? current.filter((t) => t !== title) : [...current, title];
+      window.localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -196,41 +264,17 @@ export default function SidebarNav() {
       </Link>
 
       <nav className="flex-1 overflow-y-auto overflow-x-hidden">
-        <SectionLabel collapsed={collapsed}>Blog</SectionLabel>
-        <div className="flex flex-col gap-1">
-          {CONTENT_ITEMS.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              isActive={router.pathname === item.href}
-              collapsed={collapsed}
-            />
-          ))}
-        </div>
-
-        <SectionLabel collapsed={collapsed}>Publishing</SectionLabel>
-        <div className="flex flex-col gap-1">
-          {STANDALONE_ITEMS.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              isActive={router.pathname === item.href}
-              collapsed={collapsed}
-            />
-          ))}
-        </div>
-
-        <SectionLabel collapsed={collapsed}>Statistics</SectionLabel>
-        <div className="flex flex-col gap-1">
-          {STATISTICS_ITEMS.map((item) => (
-            <NavLink
-              key={item.href}
-              item={item}
-              isActive={router.pathname === item.href}
-              collapsed={collapsed}
-            />
-          ))}
-        </div>
+        {SECTIONS.map((section) => (
+          <NavSection
+            key={section.title}
+            title={section.title}
+            items={section.items}
+            sidebarCollapsed={collapsed}
+            open={!closedSections.includes(section.title)}
+            onToggle={() => toggleSection(section.title)}
+            pathname={router.pathname}
+          />
+        ))}
       </nav>
 
       <button
