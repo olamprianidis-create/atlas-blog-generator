@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
-import { CONTACT_COLUMNS, Contact, isDuplicateEmailError, parseContactInput } from "../../../utils/contacts";
+import { CONTACT_COLUMNS, Contact, isDuplicateEmailError, parseContactInput, parseListIds } from "../../../utils/contacts";
+import { getContactWithLists, setContactLists } from "../../../utils/contactsDb";
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,7 +27,9 @@ export default async function handler(
         .maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ error: "Contact not found" });
-      return res.status(200).json(data as Contact);
+      const listIds = parseListIds(req.body);
+      if (listIds) await setContactLists(id, listIds);
+      return res.status(200).json((await getContactWithLists(id)) as Contact);
     } catch (error) {
       console.error("update contact failed:", error);
       if (isDuplicateEmailError(error)) {

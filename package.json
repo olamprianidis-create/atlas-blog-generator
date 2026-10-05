@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:anthropic": "tsx scripts/test-anthropic.ts",
-    "test:supabase": "tsx scripts/test-supabase.ts"
+    "test:supabase": "tsx scripts/test-supabase.ts",
+    "migrate": "tsx scripts/run-migration.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

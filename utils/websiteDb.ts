@@ -109,3 +109,21 @@ export async function listMembersForStatistics(): Promise<MemberStatisticsRow[]>
     phone: row.phone,
   }));
 }
+
+export interface MemberEmailRow {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+// Powers the "All ATLAS Members" audience in Email campaigns
+// (utils/emailAudience.ts) — read live at send time, never copied into
+// this app's Contacts, so it always matches the current member list.
+export async function listMembersForEmail(): Promise<MemberEmailRow[]> {
+  const { rows } = await getPool().query(
+    `SELECT "firstName", "lastName", email
+     FROM "User"
+     WHERE "isTestAccount" = false AND email IS NOT NULL`
+  );
+  return rows.map((row) => ({ firstName: row.firstName ?? "", lastName: row.lastName ?? "", email: row.email }));
+}

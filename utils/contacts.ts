@@ -11,11 +11,38 @@ export interface Contact {
   subscribed: boolean;
   created_at: string;
   updated_at: string;
+  list_ids: string[];
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 export type ContactInput = Pick<Contact, "first_name" | "last_name" | "email" | "phone" | "company" | "notes">;
 
 export const CONTACT_COLUMNS = "id, first_name, last_name, email, phone, company, notes, subscribed, created_at, updated_at";
+// Same columns plus the contact's list memberships, embedded via the
+// contact_list_members foreign key.
+export const CONTACT_WITH_LISTS_COLUMNS = `${CONTACT_COLUMNS}, contact_list_members(list_id)`;
+
+interface ContactRowWithLists extends Omit<Contact, "list_ids"> {
+  contact_list_members?: { list_id: string }[] | null;
+}
+
+export function toContact(row: ContactRowWithLists): Contact {
+  const { contact_list_members, ...rest } = row;
+  return { ...rest, list_ids: (contact_list_members ?? []).map((m) => m.list_id) };
+}
+
+// Pulls an optional `list_ids` array out of a request body. Undefined
+// means "leave memberships alone"; an array means "set them to exactly this".
+export function parseListIds(body: unknown): string[] | undefined {
+  const raw = (body as { list_ids?: unknown } | null)?.list_ids;
+  if (!Array.isArray(raw)) return undefined;
+  return raw.filter((id): id is string => typeof id === "string" && id.length > 0);
+}
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

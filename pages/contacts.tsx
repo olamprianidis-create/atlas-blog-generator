@@ -1,13 +1,17 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import AppLayout from "../components/layout/AppLayout";
+import ContactImportModal from "../components/contacts/ContactImportModal";
 import {
   Contact,
   ContactInput,
+  ContactList,
   compareContacts,
   contactDisplayName,
   contactInitials,
   contactSectionLetter,
 } from "../utils/contacts";
+
+const ALL_CONTACTS = "all";
 
 const EMPTY_FORM: ContactInput = {
   first_name: "",
@@ -129,10 +133,98 @@ export default function ContactsPage() {
   const [form, setForm] = useState<ContactInput>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [activeListId, setActiveListId] = useState<string>(ALL_CONTACTS);
+  const [formListIds, setFormListIds] = useState<string[]>([]);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadContacts();
+    void loadLists();
   }, []);
+
+  async function loadLists() {
+    try {
+      const response = await fetch("/api/contact-lists");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Failed to load lists");
+      setLists(data as ContactList[]);
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : "Failed to load lists");
+    }
+  }
+
+  async function createList(): Promise<ContactList | null> {
+    const name = window.prompt("Name for the new list (e.g. Partners, Speakers):")?.trim();
+    if (!name) return null;
+    setListError(null);
+    try {
+      const response = await fetch("/api/contact-lists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Failed to create list");
+      const created = data as ContactList;
+      setLists((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      return created;
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : "Failed to create list");
+      return null;
+    }
+  }
+
+  async function renameActiveList() {
+    const list = lists.find((l) => l.id === activeListId);
+    if (!list) return;
+    const name = window.prompt("Rename list:", list.name)?.trim();
+    if (!name || name === list.name) return;
+    setListError(null);
+    try {
+      const response = await fetch(`/api/contact-lists/${list.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Failed to rename list");
+      setLists((current) =>
+        current.map((l) => (l.id === list.id ? (data as ContactList) : l)).sort((a, b) => a.name.localeCompare(b.name))
+      );
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : "Failed to rename list");
+    }
+  }
+
+  async function deleteActiveList() {
+    const list = lists.find((l) => l.id === activeListId);
+    if (!list) return;
+    if (!window.confirm(`Delete the list "${list.name}"? The contacts in it are kept — only the list is removed.`)) return;
+    setListError(null);
+    try {
+      const response = await fetch(`/api/contact-lists/${list.id}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 204) {
+        const data = await response.json();
+        throw new Error(data.error ?? "Failed to delete list");
+      }
+      setLists((current) => current.filter((l) => l.id !== list.id));
+      setContacts((current) => current.map((c) => ({ ...c, list_ids: c.list_ids.filter((id) => id !== list.id) })));
+      setActiveListId(ALL_CONTACTS);
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : "Failed to delete list");
+    }
+  }
+
+  async function handleListSelect(value: string) {
+    if (value === "__new__") {
+      const created = await createList();
+      if (created) setActiveListId(created.id);
+      return;
+    }
+    setActiveListId(value);
+  }
 
   async function loadContacts() {
     setIsLoading(true);
@@ -150,14 +242,16 @@ export default function ContactsPage() {
   }
 
   const filtered = useMemo(() => {
+    const inList =
+      activeListId === ALL_CONTACTS ? contacts : contacts.filter((c) => c.list_ids.includes(activeListId));
     const needle = query.trim().toLowerCase();
-    if (!needle) return contacts;
-    return contacts.filter((c) =>
+    if (!needle) return inList;
+    return inList.filter((c) =>
       [contactDisplayName(c), c.email, c.phone, c.company, c.notes].some((field) =>
         field?.toLowerCase().includes(needle)
       )
     );
-  }, [contacts, query]);
+  }, [contacts, query, activeListId]);
 
   const sections = useMemo(() => {
     const groups = new Map<string, Contact[]>();
@@ -180,6 +274,8 @@ export default function ContactsPage() {
   function startNew() {
     setSelected("new");
     setForm(EMPTY_FORM);
+    // Adding a contact while viewing a list puts them in that list.
+    setFormListIds(activeListId === ALL_CONTACTS ? [] : [activeListId]);
     setIsEditing(true);
     setFormError(null);
   }
@@ -187,6 +283,7 @@ export default function ContactsPage() {
   function startEdit() {
     if (!selectedContact) return;
     setForm(toForm(selectedContact));
+    setFormListIds(selectedContact.list_ids);
     setIsEditing(true);
     setFormError(null);
   }
@@ -206,7 +303,7 @@ export default function ContactsPage() {
       const response = await fetch(isNew ? "/api/contacts" : `/api/contacts/${selected}`, {
         method: isNew ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, list_ids: formListIds }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Failed to save contact");
@@ -253,6 +350,13 @@ export default function ContactsPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsImportOpen(true)}
+            className="rounded-full border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            Import
+          </button>
+          <button
+            type="button"
             onClick={isEditing ? cancelEdit : startEdit}
             disabled={!isEditing && !selectedContact}
             className="rounded-full border border-slate-300 px-4 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -284,7 +388,33 @@ export default function ContactsPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-80 shrink-0 overflow-y-auto border-r border-slate-200 bg-white">
-          {isLoading && <p className="px-6 py-4 text-sm text-slate-500">Loading contacts…</p>}
+          <div className="border-b border-slate-200 px-6 py-3">
+            <select
+              value={activeListId}
+              onChange={(e) => void handleListSelect(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-500"
+            >
+              <option value={ALL_CONTACTS}>All Contacts ({contacts.length})</option>
+              {lists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name} ({contacts.filter((c) => c.list_ids.includes(list.id)).length})
+                </option>
+              ))}
+              <option value="__new__">+ New list…</option>
+            </select>
+            {activeListId !== ALL_CONTACTS && (
+              <div className="mt-2 flex gap-3 text-xs">
+                <button type="button" onClick={renameActiveList} className="text-slate-500 hover:text-slate-900">
+                  Rename list
+                </button>
+                <button type="button" onClick={deleteActiveList} className="text-red-500 hover:text-red-700">
+                  Delete list
+                </button>
+              </div>
+            )}
+            {listError && <p className="mt-2 text-xs text-red-600">{listError}</p>}
+          </div>
+          {isLoading &&<p className="px-6 py-4 text-sm text-slate-500">Loading contacts…</p>}
           {loadError && <p className="px-6 py-4 text-sm text-red-600">{loadError}</p>}
           {!isLoading && !loadError && contacts.length === 0 && (
             <p className="px-6 py-4 text-sm text-slate-500">No contacts yet. Click + to add one.</p>
@@ -344,6 +474,22 @@ export default function ContactsPage() {
                 {previewContact.company && (previewContact.first_name || previewContact.last_name) && (
                   <p className="mt-1 text-sm text-slate-200">{previewContact.company}</p>
                 )}
+                {!isEditing && selectedContact && (selectedContact.list_ids.length > 0 || !selectedContact.subscribed) && (
+                  <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                    {!selectedContact.subscribed && (
+                      <span className="rounded-full bg-red-500/30 px-2.5 py-0.5 text-xs font-medium text-red-100">
+                        Unsubscribed
+                      </span>
+                    )}
+                    {lists
+                      .filter((l) => selectedContact.list_ids.includes(l.id))
+                      .map((l) => (
+                        <span key={l.id} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white">
+                          {l.name}
+                        </span>
+                      ))}
+                  </div>
+                )}
                 {!isEditing && selectedContact && (
                   <div className="mt-5 flex gap-3">
                     <ActionButton href={`sms:${selectedContact.phone ?? ""}`} label="Message" disabled={!selectedContact.phone}>
@@ -369,6 +515,50 @@ export default function ContactsPage() {
                   <FormField label="Email" type="email" value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} />
                   <FormField label="Phone" type="tel" value={form.phone ?? ""} onChange={(v) => setForm({ ...form, phone: v })} />
                   <FormField label="Notes" multiline value={form.notes ?? ""} onChange={(v) => setForm({ ...form, notes: v })} />
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-violet-200">Lists</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const created = await createList();
+                          if (created) setFormListIds((current) => [...current, created.id]);
+                        }}
+                        className="text-xs text-white/70 hover:text-white"
+                      >
+                        + New list
+                      </button>
+                    </div>
+                    {lists.length === 0 ? (
+                      <p className="mt-1 text-xs text-white/50">No lists yet.</p>
+                    ) : (
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {lists.map((list) => {
+                          const checked = formListIds.includes(list.id);
+                          return (
+                            <button
+                              key={list.id}
+                              type="button"
+                              onClick={() =>
+                                setFormListIds((current) =>
+                                  checked ? current.filter((id) => id !== list.id) : [...current, list.id]
+                                )
+                              }
+                              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                                checked
+                                  ? "border-white bg-white text-slate-900"
+                                  : "border-white/30 text-white/80 hover:border-white/60"
+                              }`}
+                            >
+                              {checked ? "✓ " : ""}
+                              {list.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
 
                   {formError && <p className="rounded-md bg-red-500/20 px-3 py-2 text-sm text-red-100">{formError}</p>}
 
@@ -421,6 +611,15 @@ export default function ContactsPage() {
           )}
         </main>
       </div>
+
+      {isImportOpen && (
+        <ContactImportModal
+          lists={lists}
+          defaultListId={activeListId === ALL_CONTACTS ? "" : activeListId}
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => void loadContacts()}
+        />
+      )}
     </AppLayout>
   );
 }

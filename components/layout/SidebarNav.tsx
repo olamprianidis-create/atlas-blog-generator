@@ -98,6 +98,15 @@ const ICONS = {
       strokeLinejoin="round"
     />
   ),
+  campaigns: iconWrapper(
+    <path
+      d="M4 6h16v12H4V6Zm0 0 8 7 8-7"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
   contacts: iconWrapper(
     <path
       d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M5 20a7 7 0 0 1 14 0"
@@ -119,6 +128,7 @@ const ICONS = {
 };
 
 const EMAIL_ITEMS: NavItem[] = [
+  { href: "/email/campaigns", label: "Campaigns", icon: ICONS.campaigns },
   { href: "/contacts", label: "Contacts", icon: ICONS.contacts },
 ];
 
@@ -215,7 +225,7 @@ function NavSection({
             <NavLink
               key={item.href}
               item={item}
-              isActive={pathname === item.href}
+              isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))}
               collapsed={sidebarCollapsed}
             />
           ))}
