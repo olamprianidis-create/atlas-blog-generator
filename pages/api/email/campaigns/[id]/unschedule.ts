@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../../../utils/supabase";
 import { CAMPAIGN_COLUMNS, EmailCampaign } from "../../../../../utils/emailCampaigns";
+import { errorMessage } from "../../../../../utils/errorMessage";
 
 // Moves a scheduled campaign back to draft so it can be edited. Only works
 // before sending has started — the status filter makes that atomic.
@@ -25,7 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json(data as EmailCampaign);
   } catch (error) {
     console.error("unschedule campaign failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Failed to unschedule: ${message}` });
   }
 }

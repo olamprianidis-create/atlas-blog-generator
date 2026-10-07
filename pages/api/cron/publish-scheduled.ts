@@ -105,9 +105,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : `[cron/publish-scheduled] No videos ready (${videoResults.length} checked)`
   );
 
+  // pg_cron calls this every minute (0024_pg_cron_schedules.sql); the
+  // housekeeping below only needs to run every ~10 minutes, and the member
+  // sync queries the Website's Neon DB, which shouldn't be woken every minute.
+  const isTenMinuteMark = new Date().getUTCMinutes() % 10 === 0;
+
   // New ATLAS members → Contacts + the "ATLAS Network" list (utils/memberSync.ts).
+  // (A campaign also syncs right before it sends, so nobody new is missed.)
   let membersAddedToContacts: string[] = [];
-  try {
+  if (isTenMinuteMark) try {
     membersAddedToContacts = (await syncNewMembersToContacts()).added;
     if (membersAddedToContacts.length > 0) {
       console.log(`[cron/publish-scheduled] Added ${membersAddedToContacts.length} new member(s) to Contacts`);
@@ -134,7 +140,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   // failed publish is deliberately never auto-deleted, since its source
   // file may still be needed for a retry).
   let uploadsDeletedCount = 0;
-  try {
+  if (isTenMinuteMark) try {
     const deleted = await cleanupOldUploads();
     uploadsDeletedCount = deleted.length;
     if (deleted.length > 0) {

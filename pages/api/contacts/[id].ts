@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { CONTACT_COLUMNS, Contact, isDuplicateEmailError, parseContactInput, parseListIds } from "../../../utils/contacts";
 import { getContactWithLists, setContactLists } from "../../../utils/contactsDb";
+import { errorMessage } from "../../../utils/errorMessage";
 
 export default async function handler(
   req: NextApiRequest,
@@ -35,7 +36,7 @@ export default async function handler(
       if (isDuplicateEmailError(error)) {
         return res.status(409).json({ error: "A contact with that email already exists" });
       }
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to update contact: ${message}` });
     }
   }
@@ -47,7 +48,7 @@ export default async function handler(
       return res.status(204).end();
     } catch (error) {
       console.error("delete contact failed:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to delete contact: ${message}` });
     }
   }

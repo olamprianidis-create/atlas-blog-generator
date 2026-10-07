@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getCampaignReport } from "../../../../../utils/emailAnalytics";
 import { CampaignReport } from "../../../../../utils/emailAnalyticsShared";
+import { errorMessage } from "../../../../../utils/errorMessage";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<CampaignReport | { error: string }>) {
   if (req.method !== "GET") {
@@ -15,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json(report);
   } catch (error) {
     console.error("campaign report failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Failed to load report: ${message}` });
   }
 }

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateJSON } from "../../../utils/anthropic";
 import { stripHtml } from "../../../utils/richText";
+import { errorMessage } from "../../../utils/errorMessage";
 
 export interface SubjectOption {
   subject: string;
@@ -49,7 +50,7 @@ Return JSON: {"options":[{"subject":"...","previewText":"..."}]}`;
     return res.status(200).json({ options });
   } catch (error) {
     console.error("generate subjects failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Couldn't generate subject lines: ${message}` });
   }
 }

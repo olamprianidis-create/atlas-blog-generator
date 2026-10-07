@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { ContactList, isDuplicateEmailError } from "../../../utils/contacts";
+import { errorMessage } from "../../../utils/errorMessage";
 
 // Rename or delete a list. Deleting a list only removes the list and its
 // memberships (cascade) — the contacts themselves are untouched.
@@ -29,7 +30,7 @@ export default async function handler(
     } catch (error) {
       console.error("rename contact list failed:", error);
       if (isDuplicateEmailError(error)) return res.status(409).json({ error: "A list with that name already exists" });
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to rename list: ${message}` });
     }
   }
@@ -41,7 +42,7 @@ export default async function handler(
       return res.status(204).end();
     } catch (error) {
       console.error("delete contact list failed:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to delete list: ${message}` });
     }
   }

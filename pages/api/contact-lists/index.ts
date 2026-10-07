@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { ContactList, isDuplicateEmailError } from "../../../utils/contacts";
+import { errorMessage } from "../../../utils/errorMessage";
 
 export default async function handler(
   req: NextApiRequest,
@@ -15,7 +16,7 @@ export default async function handler(
       return res.status(200).json((data ?? []) as ContactList[]);
     } catch (error) {
       console.error("list contact lists failed:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to load lists: ${message}` });
     }
   }
@@ -36,7 +37,7 @@ export default async function handler(
       console.error("create contact list failed:", error);
       // Same unique-violation code as a duplicate contact email.
       if (isDuplicateEmailError(error)) return res.status(409).json({ error: "A list with that name already exists" });
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to create list: ${message}` });
     }
   }

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateJSON } from "../../../utils/anthropic";
+import { errorMessage } from "../../../utils/errorMessage";
 
 const MOCK = {
   html: "<p>[Mock] Hi there,</p><p>This is placeholder email content — set ANTHROPIC_MOCK_MODE=false for real output.</p><p>— The ATLAS team</p>",
@@ -42,7 +43,7 @@ Return JSON: {"html":"..."}`;
     return res.status(200).json({ html: result.html });
   } catch (error) {
     console.error("generate body failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Couldn't generate the email: ${message}` });
   }
 }

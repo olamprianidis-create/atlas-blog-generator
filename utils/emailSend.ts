@@ -15,6 +15,7 @@ import { renderCampaignEmail } from "./emailTemplate";
 import { getSenderSettings } from "./emailSettings";
 import { SITE_URL } from "./site";
 import { syncNewMembersToContacts } from "./memberSync";
+import { errorMessage } from "./errorMessage";
 import {
   CAMPAIGN_COLUMNS,
   DEFAULT_BODY_STYLE,
@@ -274,7 +275,7 @@ export async function processCampaign(campaignId: string, deadline = Date.now() 
     await finishIfDone(campaignId);
     return { campaignId };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     console.error(`[emailSend] campaign ${campaignId} failed:`, error);
     await getServiceClient().from("email_campaigns").update({ last_error: message }).eq("id", campaignId);
     return { campaignId, error: message };

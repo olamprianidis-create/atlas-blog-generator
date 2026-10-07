@@ -4,6 +4,7 @@ import { generateJSON } from "../../../../utils/anthropic";
 import { buildArticleUrl } from "../../../../utils/site";
 import { DEFAULT_TIMEZONE, buildPublishDate, parsePublishDate } from "../../../../utils/timezones";
 import { escapeHtml, sanitizeEmailHtmlServer } from "../../../../utils/emailHtmlServer";
+import { errorMessage } from "../../../../utils/errorMessage";
 
 export const config = { maxDuration: 60 };
 
@@ -111,7 +112,7 @@ Return JSON: {"subject":"...","preview_text":"...","header":"...","body_html":".
     return res.status(201).json({ id: campaign.id as string });
   } catch (error) {
     console.error("email from article failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Couldn't create the email: ${message}` });
   }
 }

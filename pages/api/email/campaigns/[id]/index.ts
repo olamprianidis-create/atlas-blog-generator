@@ -12,6 +12,7 @@ import {
 } from "../../../../../utils/emailCampaigns";
 import { getSenderSettings } from "../../../../../utils/emailSettings";
 import { TIMEZONE_OPTIONS, buildPublishDate } from "../../../../../utils/timezones";
+import { errorMessage } from "../../../../../utils/errorMessage";
 
 type Response = { campaign: EmailCampaign; sender: SenderSettings } | EmailCampaign | { error: string };
 
@@ -122,7 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
     console.error(`campaign ${req.method} failed:`, error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Campaign request failed: ${message}` });
   }
 }

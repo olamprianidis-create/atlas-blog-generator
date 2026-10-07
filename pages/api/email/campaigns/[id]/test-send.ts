@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { isEmailSendingConfigured, sendTestEmail } from "../../../../../utils/emailSend";
+import { errorMessage } from "../../../../../utils/errorMessage";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -22,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("test send failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Test send failed: ${message}` });
   }
 }

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { AudienceOptions, AudienceStats } from "../../../utils/emailCampaigns";
 import { getAudienceOptions, resolveAudience } from "../../../utils/emailAudience";
+import { errorMessage } from "../../../utils/errorMessage";
 
 // GET: counts for each audience checkbox. POST: the combined, de-duplicated
 // recipient count for a selection (unsubscribes removed).
@@ -28,7 +29,7 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
     console.error("audience request failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Failed to load audience: ${message}` });
   }
 }

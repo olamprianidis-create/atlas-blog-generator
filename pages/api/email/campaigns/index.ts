@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../../utils/supabase";
 import { CAMPAIGN_COLUMNS, EmailCampaign } from "../../../../utils/emailCampaigns";
+import { errorMessage } from "../../../../utils/errorMessage";
 
 export default async function handler(
   req: NextApiRequest,
@@ -18,7 +19,7 @@ export default async function handler(
       return res.status(200).json((data ?? []) as EmailCampaign[]);
     } catch (error) {
       console.error("list campaigns failed:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to load campaigns: ${message}` });
     }
   }
@@ -31,7 +32,7 @@ export default async function handler(
       return res.status(201).json({ id: data.id as string });
     } catch (error) {
       console.error("create campaign failed:", error);
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to create campaign: ${message}` });
     }
   }

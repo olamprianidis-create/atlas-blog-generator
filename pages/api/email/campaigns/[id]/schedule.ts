@@ -3,6 +3,7 @@ import { getServiceClient } from "../../../../../utils/supabase";
 import { CAMPAIGN_COLUMNS, EmailCampaign, campaignProblems } from "../../../../../utils/emailCampaigns";
 import { resolveAudience } from "../../../../../utils/emailAudience";
 import { isEmailSendingConfigured, processCampaign } from "../../../../../utils/emailSend";
+import { errorMessage } from "../../../../../utils/errorMessage";
 
 export const config = { maxDuration: 60 };
 
@@ -69,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json(sent as EmailCampaign);
   } catch (error) {
     console.error("schedule campaign failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Failed to schedule: ${message}` });
   }
 }

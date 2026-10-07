@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../../utils/supabase";
 import { ContactActivityItem, getContactActivity } from "../../../../utils/emailAnalytics";
+import { errorMessage } from "../../../../utils/errorMessage";
 
 // The Contacts page's "Email activity" panel.
 export default async function handler(req: NextApiRequest, res: NextApiResponse<ContactActivityItem[] | { error: string }>) {
@@ -17,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json(await getContactActivity(contact.id as string, contact.email as string | null));
   } catch (error) {
     console.error("contact activity failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Failed to load activity: ${message}` });
   }
 }

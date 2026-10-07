@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServiceClient } from "../../../utils/supabase";
 import { ContactInput, parseContactInput } from "../../../utils/contacts";
+import { errorMessage } from "../../../utils/errorMessage";
 
 export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
 
@@ -92,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(200).json({ created: createdIds.length, alreadyExisted, invalid, addedToList });
   } catch (error) {
     console.error("import contacts failed:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = errorMessage(error);
     return res.status(502).json({ error: `Import failed: ${message}` });
   }
 }

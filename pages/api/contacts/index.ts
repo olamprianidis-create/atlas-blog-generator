@@ -12,6 +12,7 @@ import {
   toContact,
 } from "../../../utils/contacts";
 import { getContactWithLists, setContactLists } from "../../../utils/contactsDb";
+import { errorMessage } from "../../../utils/errorMessage";
 
 const MISSING_TABLE_MESSAGE =
   "The contacts table doesn't exist yet — run `npm run migrate -- 0018_contacts.sql`.";
@@ -32,7 +33,7 @@ export default async function handler(
     } catch (error) {
       console.error("list contacts failed:", error);
       if (isMissingTableError(error)) return res.status(503).json({ error: MISSING_TABLE_MESSAGE });
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to load contacts: ${message}` });
     }
   }
@@ -58,7 +59,7 @@ export default async function handler(
       if (isDuplicateEmailError(error)) {
         return res.status(409).json({ error: "A contact with that email already exists" });
       }
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = errorMessage(error);
       return res.status(502).json({ error: `Failed to create contact: ${message}` });
     }
   }

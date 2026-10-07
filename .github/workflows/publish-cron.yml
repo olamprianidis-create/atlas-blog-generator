@@ -1,4 +1,14 @@
-name: Publish scheduled articles and videos
+name: Publish scheduled articles and videos (backup)
+
+# BACKUP ONLY since 2026-10-07. GitHub ran this "every 10 minutes" schedule
+# only every 3-8 hours in practice, so a campaign due at 2:32 PM never sent.
+# The real scheduler is now Supabase pg_cron (supabase/migrations/
+# 0024_pg_cron_schedules.sql), which calls publish-scheduled every minute
+# and the weekly-reminder / welcome endpoints every 10. This stays as a
+# harmless safety net for publish-scheduled only (sends/publishes are claimed
+# atomically, so a duplicate call can't double-send). The reminder and
+# welcome steps were removed from here: the reminder has no "already sent"
+# flag, so a stray extra call inside its window would post twice.
 
 # Vercel's native Cron Jobs are capped at once/day on the Hobby plan
 # regardless of the schedule configured in vercel.json, which is why
@@ -19,22 +29,5 @@ jobs:
       - name: Trigger publish-scheduled endpoint
         run: |
           curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/publish-scheduled" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
-      # Monday 5:30 PM / 6:00 PM PT Discord call reminders — the endpoint
-      # checks the real current Pacific time itself and no-ops outside
-      # those two windows, so this same every-10-minutes ping is what
-      # drives it (see pages/api/cron/weekly-reminder.ts for why).
-      - name: Trigger weekly-reminder endpoint
-        run: |
-          curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/weekly-reminder" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json"
-      # Welcomes any Discord member who joined since the last check (see
-      # pages/api/cron/welcome-new-members.ts) — up to a ~10 min delay
-      # after joining, same tradeoff as the reminders above.
-      - name: Trigger welcome-new-members endpoint
-        run: |
-          curl -sf -X POST "https://atlas-blog-generator.vercel.app/api/cron/welcome-new-members" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json"
