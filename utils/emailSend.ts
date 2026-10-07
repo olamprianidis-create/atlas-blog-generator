@@ -90,6 +90,14 @@ function buildMessage(campaign: EmailCampaign, to: string, sendId: string | null
     subject: `${subjectPrefix}${campaign.subject}`,
     html,
     text,
+    // Lets the webhook (pages/api/email/webhook.ts) match every event to
+    // its email_sends row even if it arrives before resend_id is saved.
+    tags: sendId
+      ? [
+          { name: "send_id", value: sendId },
+          { name: "campaign_id", value: campaign.id },
+        ]
+      : [{ name: "test", value: "true" }],
     // One-click unsubscribe (RFC 8058) — Gmail/Yahoo require it for bulk
     // senders. Mail clients POST to this URL; see pages/api/email/unsubscribe.ts.
     headers: sendId
@@ -207,6 +215,8 @@ async function sendQueued(campaign: EmailCampaign, deadline: number): Promise<vo
           .from("email_sends")
           .update({ status: "sent", resend_id: data.data[i]?.id ?? null, sent_at: now })
           .eq("id", r.id)
+          // A bounce/complaint webhook may already have landed; don't overwrite it.
+          .eq("status", "queued")
       )
     );
   }

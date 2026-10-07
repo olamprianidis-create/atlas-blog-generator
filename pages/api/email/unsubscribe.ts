@@ -34,6 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       .update({ subscribed: false, updated_at: new Date().toISOString() })
       .eq("email", email); // contacts store emails lowercased
     if (contactError) throw contactError;
+    // For the campaign report's unsubscribe count.
+    await supabase.from("email_sends").update({ unsubscribed_at: new Date().toISOString() }).eq("id", id).is("unsubscribed_at", null);
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("unsubscribe failed:", error);

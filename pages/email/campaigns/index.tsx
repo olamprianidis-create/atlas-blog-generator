@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import AppLayout from "../../../components/layout/AppLayout";
 import { CAMPAIGN_STEPS, CampaignStatus, EmailCampaign, campaignStatusLabel } from "../../../utils/emailCampaigns";
+import { CampaignOverview, formatPercent } from "../../../utils/emailAnalyticsShared";
+import CampaignTrendChart from "../../../components/email/analytics/CampaignTrendChart";
 
 const TABS: { key: string; label: string; statuses: CampaignStatus[] }[] = [
   { key: "drafts", label: "Drafts", statuses: ["draft"] },
@@ -19,6 +21,14 @@ const STATUS_STYLES: Record<CampaignStatus, string> = {
   canceled: "bg-slate-100 text-slate-500",
 };
 
+// Sent/sending/failed campaigns open their analytics report; the rest
+// open the wizard.
+function campaignHref(c: EmailCampaign): string {
+  return c.status === "sent" || c.status === "sending" || c.status === "failed"
+    ? `/email/campaigns/${c.id}/report`
+    : `/email/campaigns/${c.id}`;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
@@ -30,6 +40,14 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [overview, setOverview] = useState<CampaignOverview | null>(null);
+
+  useEffect(() => {
+    fetch("/api/email/analytics/overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setOverview(data as CampaignOverview | null))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     fetch("/api/email/campaigns")
@@ -100,10 +118,32 @@ export default function CampaignsPage() {
             </button>
           </div>
 
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Automatic sending is the next build phase. Until it's switched on, confirmed campaigns wait in
-            Scheduled and nothing is emailed.
-          </div>
+          {overview && overview.campaignsSent > 0 && (
+            <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                {[
+                  ["Campaigns sent", String(overview.campaignsSent)],
+                  ["Emails sent", overview.emailsSent.toLocaleString()],
+                  ["Avg click rate", formatPercent(overview.rates.clickRate)],
+                  ["Avg open rate (approx.)", formatPercent(overview.rates.openRate)],
+                  ["Avg unsubscribes", formatPercent(overview.rates.unsubscribeRate)],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="mt-0.5 text-xl font-semibold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+              {overview.series.length > 0 ? (
+                <div className="mt-5">
+                  <p className="mb-1 text-xs font-medium text-slate-500">Click rate by campaign</p>
+                  <CampaignTrendChart overview={overview} />
+                </div>
+              ) : (
+                <p className="mt-4 text-xs text-slate-500">Averages appear once a campaign with tracking has been sent.</p>
+              )}
+            </section>
+          )}
 
           <div className="mt-6 flex gap-1 border-b border-slate-200">
             {TABS.map((t) => {
@@ -134,7 +174,7 @@ export default function CampaignsPage() {
             )}
             {visible.map((c) => (
               <div key={c.id} className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">
-                <Link href={`/email/campaigns/${c.id}`} className="min-w-0 flex-1">
+                <Link href={campaignHref(c)} className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[c.status]}`}>
                       {campaignStatusLabel(c.status)}
@@ -164,7 +204,7 @@ export default function CampaignsPage() {
                   </button>
                 )}
                 <Link
-                  href={`/email/campaigns/${c.id}`}
+                  href={campaignHref(c)}
                   className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                 >
                   {c.status === "draft" ? "Continue" : "View"}
