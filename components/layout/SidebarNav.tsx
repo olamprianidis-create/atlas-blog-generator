@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ReactNode, useEffect, useState } from "react";
+import { BLOG_TABS, isBlogTabActive } from "./BlogTabs";
 
 interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
+  // Other pages this item should show as active on (e.g. every blog tab).
+  activeFor?: string[];
 }
 
 function iconWrapper(path: ReactNode) {
@@ -20,33 +23,6 @@ const ICONS = {
   generator: iconWrapper(
     <path
       d="M4 19.5V6a2 2 0 0 1 2-2h9l5 5v10.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z M14 4v4a1 1 0 0 0 1 1h4 M8 13h8 M8 17h5"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  ),
-  scheduled: iconWrapper(
-    <path
-      d="M8 3v3M16 3v3M4.5 9h15M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z M9 13.5l2 2 4-4.5"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  ),
-  published: iconWrapper(
-    <path
-      d="M9 12.5 11.2 15 16 9.5 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  ),
-  drafts: iconWrapper(
-    <path
-      d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z M14 3v4a1 1 0 0 0 1 1h4 M8 13h8 M8 17h4"
       stroke="currentColor"
       strokeWidth="1.6"
       strokeLinecap="round"
@@ -132,11 +108,11 @@ const EMAIL_ITEMS: NavItem[] = [
   { href: "/contacts", label: "Contacts", icon: ICONS.contacts },
 ];
 
+// One item for the whole blog section (2026-10-07, like Email's single
+// Campaigns entry); Drafts / Generator / Scheduled / Published are tabs
+// across the top of those pages instead (components/layout/BlogTabs.tsx).
 const CONTENT_ITEMS: NavItem[] = [
-  { href: "/drafts", label: "Drafts", icon: ICONS.drafts },
-  { href: "/", label: "Generator", icon: ICONS.generator },
-  { href: "/scheduled", label: "Scheduled", icon: ICONS.scheduled },
-  { href: "/published", label: "Published", icon: ICONS.published },
+  { href: "/", label: "Blogs", icon: ICONS.generator, activeFor: BLOG_TABS.map((t) => t.href) },
 ];
 
 const STANDALONE_ITEMS: NavItem[] = [
@@ -225,7 +201,7 @@ function NavSection({
             <NavLink
               key={item.href}
               item={item}
-              isActive={pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))}
+              isActive={(item.activeFor ?? [item.href]).some((href) => isBlogTabActive(pathname, href))}
               collapsed={sidebarCollapsed}
             />
           ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import BlogTabs from "../components/layout/BlogTabs";
 import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
 
@@ -64,7 +65,7 @@ export default function ScheduledPage() {
   }, []);
 
   return (
-    <AppLayout>
+    <AppLayout header={<BlogTabs />}>
       <main className="flex-1 overflow-y-auto px-8 py-10">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-2xl font-semibold text-slate-900">Scheduled</h1>

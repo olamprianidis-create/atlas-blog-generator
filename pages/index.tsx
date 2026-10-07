@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import BlogTabs from "../components/layout/BlogTabs";
 import AppLayout from "../components/layout/AppLayout";
 import Sidebar from "../components/layout/Sidebar";
 import SaveDraftButton from "../components/layout/SaveDraftButton";
@@ -892,7 +893,7 @@ export default function Home() {
   }
 
   return (
-    <AppLayout contentClassName="flex flex-1 overflow-hidden">
+    <AppLayout header={<BlogTabs />} contentClassName="flex flex-1 overflow-hidden">
       <Sidebar
         currentStep={currentStep}
         maxStepReached={maxStepReached}

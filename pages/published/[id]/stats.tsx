@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import BlogTabs from "../../../components/layout/BlogTabs";
 import AppLayout from "../../../components/layout/AppLayout";
 import type { ArticleStats } from "../../../utils/articleAnalytics";
 
@@ -101,7 +102,7 @@ export default function ArticleStatsPage() {
   }, [id]);
 
   return (
-    <AppLayout>
+    <AppLayout header={<BlogTabs />}>
       <main className="flex-1 overflow-y-auto px-8 py-10">
         <div className="mx-auto max-w-3xl">
           <Link href="/published" className="text-sm text-blue-600 hover:underline">
