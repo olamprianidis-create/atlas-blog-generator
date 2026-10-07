@@ -17,6 +17,58 @@ function Row({ label, children, onEdit }: { label: string; children: React.React
   );
 }
 
+// Sends the saved campaign to one address with "[Test]" on the subject.
+function TestSend({ campaignId, defaultTo }: { campaignId: string; defaultTo: string }) {
+  const [to, setTo] = useState(defaultTo);
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    setState("sending");
+    setError(null);
+    try {
+      const response = await fetch(`/api/email/campaigns/${campaignId}/test-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Test send failed");
+      setState("sent");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Test send failed");
+      setState("idle");
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-sm font-semibold text-slate-900">Send me a test</p>
+      <p className="mt-0.5 text-xs text-slate-500">Arrives with “[Test]” in the subject. Nobody else gets it.</p>
+      <div className="mt-3 flex gap-2">
+        <input
+          type="email"
+          value={to}
+          onChange={(e) => {
+            setTo(e.target.value);
+            setState("idle");
+          }}
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={state === "sending" || !to.trim()}
+          className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-40"
+        >
+          {state === "sending" ? "Sending…" : state === "sent" ? "Sent ✓" : "Send test"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 export default function StepReview({
   campaign,
   sender,
@@ -100,7 +152,18 @@ export default function StepReview({
             <p className="font-semibold">{campaign.subject || "—"}</p>
             <p className="text-slate-500">{campaign.preview_text || "No preview line"}</p>
           </Row>
+          {(campaign.status === "sending" || campaign.status === "sent" || campaign.status === "failed") && (
+            <Row label="Delivery">
+              <p className="font-semibold">
+                {campaign.status === "sending" ? "Sending… " : ""}
+                {campaign.sent_count} sent{campaign.failed_count ? `, ${campaign.failed_count} failed` : ""}
+              </p>
+              {campaign.last_error && <p className="text-red-600">{campaign.last_error}</p>}
+            </Row>
+          )}
         </div>
+
+        <TestSend campaignId={campaign.id} defaultTo={sender.replyTo} />
 
         <InboxPreview
           fromName={campaign.from_name}
@@ -127,7 +190,7 @@ export default function StepReview({
               onClick={() => stats && onConfirm(stats.recipients, whenLabel)}
               className="w-full rounded-xl bg-slate-900 py-3.5 text-base font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-40"
             >
-              {isConfirming ? "Scheduling…" : campaign.send_immediately ? "Confirm & Send" : "Confirm & Schedule"}
+              {isConfirming ? (campaign.send_immediately ? "Sending…" : "Scheduling…") : campaign.send_immediately ? "Confirm & Send" : "Confirm & Schedule"}
             </button>
           </>
         )}

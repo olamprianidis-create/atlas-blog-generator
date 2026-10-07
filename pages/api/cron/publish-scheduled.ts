@@ -3,6 +3,10 @@ import { getServiceClient } from "../../../utils/supabase";
 import { publishArticleById } from "../../../utils/publish";
 import { publishVideoUploadById } from "../../../utils/publishVideo";
 import { cleanupOldUploads } from "../../../utils/cleanupOldUploads";
+import { CampaignSendResult, processDueCampaigns } from "../../../utils/emailSend";
+
+// Email campaign batches can take a while; Hobby allows up to 60s.
+export const config = { maxDuration: 60 };
 
 interface CronResponse {
   checked: number;
@@ -12,6 +16,7 @@ interface CronResponse {
   videosPublished: number;
   videoResults: { uploadId: string; success: boolean; youtubeError?: string; tiktokError?: string }[];
   uploadsDeleted: number;
+  campaignResults: CampaignSendResult[];
 }
 
 // Vercel Cron sends `Authorization: Bearer $CRON_SECRET` automatically
@@ -98,6 +103,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : `[cron/publish-scheduled] No videos ready (${videoResults.length} checked)`
   );
 
+  // Email campaigns: send any that are due, and keep going on any still
+  // mid-send (utils/emailSend.ts). Never blocks the rest of this cron.
+  let campaignResults: CampaignSendResult[] = [];
+  try {
+    campaignResults = await processDueCampaigns();
+    if (campaignResults.length > 0) {
+      console.log(`[cron/publish-scheduled] Processed ${campaignResults.length} email campaign(s)`);
+    }
+  } catch (campaignError) {
+    console.error("[cron/publish-scheduled] email campaigns failed:", campaignError);
+  }
+
   // Storage cleanup: video_uploads rows that finished publishing
   // successfully to every platform they targeted, a week or more ago —
   // see utils/cleanupOldUploads.ts for the exact eligibility rules (a
@@ -124,5 +141,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     videosPublished: videosPublishedCount,
     videoResults,
     uploadsDeleted: uploadsDeletedCount,
+    campaignResults,
   });
 }
