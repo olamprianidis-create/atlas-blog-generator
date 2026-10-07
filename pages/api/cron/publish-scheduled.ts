@@ -134,18 +134,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     console.error("[cron/publish-scheduled] email campaigns failed:", campaignError);
   }
 
-  // Storage cleanup: video_uploads rows that finished publishing
-  // successfully to every platform they targeted, a week or more ago —
-  // see utils/cleanupOldUploads.ts for the exact eligibility rules (a
-  // failed publish is deliberately never auto-deleted, since its source
-  // file may still be needed for a retry).
+  // Storage cleanup, every run: video_uploads rows that finished publishing
+  // successfully to every platform they targeted are removed within about a
+  // minute (YouTube-only) or an hour (TikTok) — see utils/cleanupOldUploads.ts
+  // for the exact rules (a failed publish is never auto-deleted, since its
+  // source file may still be needed for a retry).
   let uploadsDeletedCount = 0;
-  if (isTenMinuteMark) try {
+  try {
     const deleted = await cleanupOldUploads();
     uploadsDeletedCount = deleted.length;
     if (deleted.length > 0) {
       console.log(
-        `[cron/publish-scheduled] Deleted ${deleted.length} upload(s) older than 7 days: ${deleted.map((d) => d.title).join(", ")}`
+        `[cron/publish-scheduled] Deleted ${deleted.length} posted upload(s): ${deleted.map((d) => d.title).join(", ")}`
       );
     }
   } catch (cleanupError) {

@@ -13,12 +13,18 @@ interface OldUploadRow {
   tiktok_status: string;
 }
 
-const RETENTION_DAYS = 7;
+// TikTok's PULL_FROM_URL publish is marked "published" as soon as TikTok
+// accepts the request, but TikTok downloads the file from Blob afterwards,
+// asynchronously — so a TikTok-targeted upload keeps its file for this long
+// first. YouTube receives the whole file during the upload call itself, so
+// a YouTube-only upload is deleted on the next run (~1 minute).
+const TIKTOK_PULL_GRACE_MS = 60 * 60 * 1000;
 
 // Deletes video_uploads rows (and their Blob-stored video/thumbnail
-// files) a week after they actually finished publishing successfully —
-// the raw source file's only job was getting the video onto YouTube/
-// TikTok, and once that's done it just sits there costing storage.
+// files) as soon as they've finished publishing successfully (by request,
+// 2026-10-07 — previously a week later): the raw source file's only job
+// was getting the video onto YouTube/TikTok, and once that's done it just
+// sits there costing storage. Runs every minute from the publish cron.
 //
 // Deliberately narrow eligibility, to avoid a repeat of the 2026-09-02
 // incident (a fuzzy list()-and-match cleanup script deleted files still
@@ -33,13 +39,11 @@ export async function cleanupOldUploads(
   { dryRun = false }: { dryRun?: boolean } = {}
 ): Promise<{ id: string; title: string; publishedAt: string }[]> {
   const db = getServiceClient();
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await db
     .from("video_uploads")
     .select("id, title, video_url, thumbnail_url, published_at, target_youtube, youtube_status, target_tiktok, tiktok_status")
     .not("published_at", "is", null)
-    .lte("published_at", cutoff)
     .returns<OldUploadRow[]>();
 
   if (error) throw error;
@@ -47,7 +51,9 @@ export async function cleanupOldUploads(
   const eligible = (data ?? []).filter((row) => {
     const youtubeOk = !row.target_youtube || row.youtube_status === "published";
     const tiktokOk = !row.target_tiktok || row.tiktok_status === "published";
-    return youtubeOk && tiktokOk;
+    const grace = row.target_tiktok ? TIKTOK_PULL_GRACE_MS : 0;
+    const settled = Date.now() - new Date(row.published_at!).getTime() >= grace;
+    return youtubeOk && tiktokOk && settled;
   });
 
   const results: { id: string; title: string; publishedAt: string }[] = [];
