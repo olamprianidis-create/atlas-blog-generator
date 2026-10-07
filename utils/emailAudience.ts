@@ -30,16 +30,32 @@ async function listContactsForAudience(selection: AudienceSelection): Promise<Co
     if (error) throw error;
     return (data ?? []) as ContactRow[];
   }
-  if (selection.audience_list_ids.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("contact_list_members")
-    .select(`contacts(${columns})`)
-    .in("list_id", selection.audience_list_ids);
-  if (error) throw error;
-  return (data ?? [])
-    .map((row) => (row as unknown as { contacts: ContactRow | null }).contacts)
-    .filter((c): c is ContactRow => c !== null);
+  const fromLists = async (): Promise<ContactRow[]> => {
+    if (selection.audience_list_ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from("contact_list_members")
+      .select(`contacts(${columns})`)
+      .in("list_id", selection.audience_list_ids);
+    if (error) throw error;
+    return (data ?? [])
+      .map((row) => (row as unknown as { contacts: ContactRow | null }).contacts)
+      .filter((c): c is ContactRow => c !== null);
+  };
+  // Hand-picked people from the "Specific people" search.
+  const picked = async (): Promise<ContactRow[]> => {
+    if (selection.audience_contact_ids.length === 0) return [];
+    const { data, error } = await supabase.from("contacts").select(columns).in("id", selection.audience_contact_ids);
+    if (error) throw error;
+    return (data ?? []) as ContactRow[];
+  };
+
+  // A contact both on a list and picked individually would count as a
+  // "duplicate merged" — drop the repeat by id first so it doesn't.
+  const byId = new Map<string, ContactRow>();
+  const [listed, chosen] = await Promise.all([fromLists(), picked()]);
+  for (const c of [...listed, ...chosen]) byId.set(c.id, c);
+  return Array.from(byId.values());
 }
 
 async function listUnsubscribedEmails(): Promise<Set<string>> {
@@ -110,8 +126,7 @@ export async function resolveAudience(
 // Counts for each checkbox on the wizard's Audience step.
 export async function getAudienceOptions(): Promise<AudienceOptions> {
   const supabase = getServiceClient();
-  const [members, contactsResult, listsResult, membershipsResult] = await Promise.all([
-    listMembersForEmail(),
+  const [contactsResult, listsResult, membershipsResult] = await Promise.all([
     supabase.from("contacts").select("id", { count: "exact", head: true }),
     supabase.from("contact_lists").select("id, name").order("name"),
     supabase.from("contact_list_members").select("list_id"),
@@ -126,7 +141,6 @@ export async function getAudienceOptions(): Promise<AudienceOptions> {
   }
 
   return {
-    memberCount: members.length,
     contactCount: contactsResult.count ?? 0,
     lists: (listsResult.data ?? []).map((l) => ({
       id: l.id as string,

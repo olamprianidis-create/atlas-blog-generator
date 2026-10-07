@@ -139,11 +139,12 @@ export default function CampaignWizardPage() {
       campaign
         ? {
             audience_list_ids: campaign.audience_list_ids,
+            audience_contact_ids: campaign.audience_contact_ids,
             include_all_members: campaign.include_all_members,
             include_all_contacts: campaign.include_all_contacts,
           }
         : null,
-    [campaign?.audience_list_ids, campaign?.include_all_members, campaign?.include_all_contacts] // eslint-disable-line react-hooks/exhaustive-deps
+    [campaign?.audience_list_ids, campaign?.audience_contact_ids, campaign?.include_all_members, campaign?.include_all_contacts] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   if (!campaign || !sender || !audience) {

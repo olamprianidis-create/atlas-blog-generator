@@ -45,6 +45,7 @@ export default function StepReview({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         audience_list_ids: campaign.audience_list_ids,
+        audience_contact_ids: campaign.audience_contact_ids,
         include_all_members: campaign.include_all_members,
         include_all_contacts: campaign.include_all_contacts,
       }),
@@ -52,7 +53,7 @@ export default function StepReview({
       .then((r) => r.json())
       .then((data) => setStats(data as AudienceStats))
       .catch(() => undefined);
-  }, [campaign.audience_list_ids, campaign.include_all_members, campaign.include_all_contacts]);
+  }, [campaign.audience_list_ids, campaign.audience_contact_ids, campaign.include_all_members, campaign.include_all_contacts]);
 
   const audienceNames = [
     campaign.include_all_members && "All ATLAS Members",
@@ -60,6 +61,9 @@ export default function StepReview({
     ...(campaign.include_all_contacts
       ? []
       : campaign.audience_list_ids.map((id) => options?.lists.find((l) => l.id === id)?.name ?? "List")),
+    !campaign.include_all_contacts &&
+      campaign.audience_contact_ids.length > 0 &&
+      `${campaign.audience_contact_ids.length} specific ${campaign.audience_contact_ids.length === 1 ? "person" : "people"}`,
   ].filter(Boolean);
 
   const whenLabel = campaign.send_immediately

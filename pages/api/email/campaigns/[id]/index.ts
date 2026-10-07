@@ -3,9 +3,12 @@ import { getServiceClient } from "../../../../../utils/supabase";
 import {
   CAMPAIGN_COLUMNS,
   CampaignEdits,
+  DEFAULT_BODY_STYLE,
+  DEFAULT_HEADER_STYLE,
   EDITABLE_CAMPAIGN_FIELDS,
   EmailCampaign,
   SenderSettings,
+  withSectionDefaults,
 } from "../../../../../utils/emailCampaigns";
 import { getSenderSettings } from "../../../../../utils/emailSettings";
 import { TIMEZONE_OPTIONS, buildPublishDate } from "../../../../../utils/timezones";
@@ -26,7 +29,8 @@ function pickEdits(body: Record<string, unknown>): CampaignEdits | { error: stri
         if (typeof value !== "number" || value < 1 || value > 5) return { error: "Invalid step" };
         break;
       case "audience_list_ids":
-        if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) return { error: "Invalid lists" };
+      case "audience_contact_ids":
+        if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) return { error: `Invalid ${field}` };
         break;
       case "include_all_members":
       case "include_all_contacts":
@@ -42,6 +46,11 @@ function pickEdits(body: Record<string, unknown>): CampaignEdits | { error: stri
       case "timezone":
         if (!TIMEZONE_OPTIONS.some((t) => t.value === value)) return { error: "Invalid time zone" };
         break;
+      case "header_style":
+      case "body_style":
+        // Normalized rather than rejected: unknown fonts/sizes fall back.
+        edits[field] = withSectionDefaults(value, field === "header_style" ? DEFAULT_HEADER_STYLE : DEFAULT_BODY_STYLE);
+        continue;
       default:
         if (typeof value !== "string") return { error: `Invalid ${field}` };
     }

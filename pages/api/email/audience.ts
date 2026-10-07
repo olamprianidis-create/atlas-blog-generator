@@ -13,11 +13,11 @@ export default async function handler(
 
     if (req.method === "POST") {
       const body = req.body ?? {};
-      const listIds = Array.isArray(body.audience_list_ids)
-        ? body.audience_list_ids.filter((v: unknown): v is string => typeof v === "string")
-        : [];
+      const stringArray = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter((v: unknown): v is string => typeof v === "string") : [];
       const { stats } = await resolveAudience({
-        audience_list_ids: listIds,
+        audience_list_ids: stringArray(body.audience_list_ids),
+        audience_contact_ids: stringArray(body.audience_contact_ids),
         include_all_members: body.include_all_members === true,
         include_all_contacts: body.include_all_contacts === true,
       });
