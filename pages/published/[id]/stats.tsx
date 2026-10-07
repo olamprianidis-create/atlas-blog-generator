@@ -126,7 +126,7 @@ export default function ArticleStatsPage() {
               <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 <StatCard label="Total views" value={stats.totalViews.toLocaleString()} />
                 <StatCard label="Unique viewers" value={stats.uniqueViewers.toLocaleString()} />
-                <StatCard label="Avg. time on page" value={formatDuration(stats.avgTimeOnPageSeconds)} />
+                <StatCard label="Typical time on page" value={formatDuration(stats.avgTimeOnPageSeconds)} />
                 <StatCard label="Impressions" value={stats.impressions.toLocaleString()} hint="on the Articles page" />
                 <StatCard label="Clicks" value={stats.clicksFromListing.toLocaleString()} hint="from the Articles page" />
                 <StatCard

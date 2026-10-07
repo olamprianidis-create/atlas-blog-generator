@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import BlogTabs from "../components/layout/BlogTabs";
+import type { ArticlesOverview, PeriodValue } from "../utils/articleAnalytics";
 import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
 import { buildArticleUrl } from "../utils/site";
@@ -46,6 +47,45 @@ function formatPublishDate(iso: string | null) {
   });
 }
 
+function formatDuration(seconds: number | null): string {
+  if (seconds === null) return "—";
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+// One summary tile: the all-time number, then the last 30 days with a
+// ▲/▼ against the 30 days before.
+function OverviewTile({
+  label,
+  help,
+  value,
+  format,
+}: {
+  label: string;
+  help: string;
+  value: PeriodValue;
+  format: (v: number | null) => string;
+}) {
+  let trend: React.ReactNode = null;
+  if (value.last30 !== null && value.prev30 !== null && value.prev30 !== value.last30) {
+    const up = value.last30 > value.prev30;
+    trend = (
+      <span className={up ? "text-green-700" : "text-red-700"}>
+        {up ? "▲" : "▼"} vs prior 30 days ({format(value.prev30)})
+      </span>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4" title={help}>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-slate-900">{format(value.allTime)}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Last 30 days: <span className="font-medium text-slate-700">{format(value.last30)}</span>
+      </p>
+      {trend && <p className="mt-0.5 text-xs">{trend}</p>}
+    </div>
+  );
+}
+
 export default function PublishedPage() {
   const [articles, setArticles] = useState<PublishedArticleItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,8 +103,14 @@ export default function PublishedPage() {
       .finally(() => setIsLoading(false));
   }
 
+  const [overview, setOverview] = useState<ArticlesOverview | null>(null);
+
   useEffect(() => {
     loadArticles();
+    fetch("/api/published-articles/overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setOverview(data as ArticlesOverview | null))
+      .catch(() => undefined);
   }, []);
 
   async function shareToLinkedin(articleId: string) {
@@ -89,6 +135,35 @@ export default function PublishedPage() {
           <p className="mt-1 text-sm text-slate-500">
             Articles live on atlasnetwork.club. Click one to open it.
           </p>
+
+          {overview && (
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <OverviewTile
+                label="Total views"
+                help="Every time someone opened an article page."
+                value={overview.views}
+                format={(v) => (v === null ? "—" : v.toLocaleString())}
+              />
+              <OverviewTile
+                label="Unique readers"
+                help="Different people (one per browser) who read at least one article."
+                value={overview.uniqueReaders}
+                format={(v) => (v === null ? "—" : v.toLocaleString())}
+              />
+              <OverviewTile
+                label="Typical time on page"
+                help="Median time an article stayed open — the middle reading, so a tab left open for hours can't skew it. The best sign people actually read it."
+                value={overview.avgTimeOnPageSeconds}
+                format={formatDuration}
+              />
+              <OverviewTile
+                label="Click-through rate"
+                help="Of the times an article was shown on the Articles page, how often someone opened it."
+                value={overview.ctrPercent}
+                format={(v) => (v === null ? "—" : `${v.toFixed(1)}%`)}
+              />
+            </div>
+          )}
 
           {error && (
             <p className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

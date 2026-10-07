@@ -28,6 +28,15 @@ const DEVICE_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
+// Median, not mean: one tab left open for hours (seen: 16,325s next to
+// readings of 1–87s) would otherwise drag a mean to ~17 minutes.
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return Math.round(sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 function toDateKey(iso: string): string {
   return iso.slice(0, 10);
 }
@@ -60,10 +69,8 @@ export async function getArticleStats(articleId: string): Promise<ArticleStats> 
   const impressionCount = impressions.length;
   const ctrPercent = impressionCount > 0 ? (clicksFromListing / impressionCount) * 100 : null;
 
-  const avgTimeOnPageSeconds =
-    durations.length > 0
-      ? Math.round(durations.reduce((sum, d) => sum + d.duration_seconds, 0) / durations.length)
-      : null;
+  // Field name kept for compatibility; the value is the median (see median()).
+  const avgTimeOnPageSeconds = median(durations.map((d) => d.duration_seconds));
 
   const viewsByDayMap = new Map<string, number>();
   for (const view of views) {
@@ -102,5 +109,69 @@ export async function getArticleStats(articleId: string): Promise<ArticleStats> 
     viewsByDay,
     referrerBreakdown,
     deviceBreakdown,
+  };
+}
+
+// --- All-articles summary for the top of the Published page ---------------
+
+export interface PeriodValue {
+  allTime: number | null;
+  last30: number | null;
+  prev30: number | null; // the 30 days before that, for the ▲/▼
+}
+
+export interface ArticlesOverview {
+  views: PeriodValue;
+  uniqueReaders: PeriodValue;
+  avgTimeOnPageSeconds: PeriodValue;
+  ctrPercent: PeriodValue; // clicks from the /articles listing ÷ impressions there
+}
+
+const PAGE = 1000; // Supabase's per-request row cap
+
+async function fetchAllRows<T>(table: string, columns: string): Promise<T[]> {
+  const supabase = getServiceClient();
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from(table).select(columns).order("created_at").range(from, from + PAGE - 1);
+    if (error) return rows; // table missing (migration not run) → treat as no data
+    rows.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+export async function getArticlesOverview(): Promise<ArticlesOverview> {
+  const [views, impressions, durations] = await Promise.all([
+    fetchAllRows<{ visitor_id: string; referrer_category: string; created_at: string }>(
+      "article_page_views",
+      "visitor_id, referrer_category, created_at"
+    ),
+    fetchAllRows<{ created_at: string }>("article_impressions", "created_at"),
+    fetchAllRows<{ duration_seconds: number; created_at: string }>("article_view_durations", "duration_seconds, created_at"),
+  ]);
+
+  const now = Date.now();
+  const DAY = 86_400_000;
+  // [from, to) windows in ms; null = unbounded.
+  const windows = { allTime: [null, null], last30: [now - 30 * DAY, null], prev30: [now - 60 * DAY, now - 30 * DAY] } as const;
+  const inWindow = (iso: string, [from, to]: readonly [number | null, number | null]) => {
+    const t = new Date(iso).getTime();
+    return (from === null || t >= from) && (to === null || t < to);
+  };
+  const per = (fn: (w: readonly [number | null, number | null]) => number | null): PeriodValue => ({
+    allTime: fn(windows.allTime),
+    last30: fn(windows.last30),
+    prev30: fn(windows.prev30),
+  });
+
+  return {
+    views: per((w) => views.filter((v) => inWindow(v.created_at, w)).length),
+    uniqueReaders: per((w) => new Set(views.filter((v) => inWindow(v.created_at, w)).map((v) => v.visitor_id)).size),
+    avgTimeOnPageSeconds: per((w) => median(durations.filter((x) => inWindow(x.created_at, w)).map((x) => x.duration_seconds))),
+    ctrPercent: per((w) => {
+      const shown = impressions.filter((i) => inWindow(i.created_at, w)).length;
+      const clicks = views.filter((v) => v.referrer_category === "internal_listing" && inWindow(v.created_at, w)).length;
+      return shown ? (clicks / shown) * 100 : null;
+    }),
   };
 }
