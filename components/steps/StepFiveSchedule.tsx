@@ -255,6 +255,48 @@ function LinkedInSection({ articleId, isPublished }: { articleId: string | null;
   );
 }
 
+// Shown once the article is scheduled: drafts an email campaign from it
+// (pages/api/email/campaigns/from-article.ts) and opens it in the wizard.
+function CreateEmailBlastButton({ articleId }: { articleId: string | null }) {
+  const router = useRouter();
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function create() {
+    if (!articleId) return;
+    setIsCreating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/email/campaigns/from-article", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ articleId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't create the email");
+      await router.push(`/email/campaigns/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create the email");
+      setIsCreating(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        onClick={create}
+        disabled={!articleId || isCreating}
+        className="flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isCreating && <Spinner />}
+        {isCreating ? "Writing the email…" : "Create Email Blast"}
+      </button>
+      {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+    </div>
+  );
+}
+
 export default function StepFiveSchedule({
   article,
   category,
@@ -351,7 +393,8 @@ export default function StepFiveSchedule({
 
         <Section title="Publish">{publishNowBlock}</Section>
 
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex items-start justify-center gap-3">
+          <CreateEmailBlastButton articleId={scheduleResult.articleId} />
           <button
             type="button"
             onClick={onNextBlog}

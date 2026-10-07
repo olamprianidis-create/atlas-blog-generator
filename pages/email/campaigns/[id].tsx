@@ -23,7 +23,7 @@ function stepDone(step: number, c: EmailCampaign): boolean {
     case 1:
       return hasAudience(c);
     case 2:
-      return c.send_immediately || Boolean(c.send_date && c.send_time);
+      return c.send_immediately || Boolean(c.send_at && new Date(c.send_at).getTime() > Date.now());
     case 3:
       return Boolean(c.from_name.trim() && c.subject.trim());
     case 4:
@@ -166,6 +166,9 @@ export default function CampaignWizardPage() {
           {CAMPAIGN_STEPS.map((s) => {
             const isActive = s.number === step;
             const done = stepDone(s.number, campaign);
+            // Steps 1–4 hold the campaign's content; flag any that are missing
+            // something (e.g. sender/audience on an email drafted from a blog).
+            const missing = isDraft && s.number <= 4 && !done;
             const clickable = isDraft;
             return (
               <li key={s.number}>
@@ -184,7 +187,16 @@ export default function CampaignWizardPage() {
                   >
                     {done && !isActive ? "✓" : s.number}
                   </span>
-                  {s.label}
+                  <span className="flex-1">{s.label}</span>
+                  {missing && (
+                    <span title="Missing information" aria-label="Missing information">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
+                        <path d="M10 2.5 18.5 17h-17L10 2.5Z" fill="#fab219" stroke="#b45309" strokeWidth="1" strokeLinejoin="round" />
+                        <path d="M10 7.5v4.5" stroke="#1c1917" strokeWidth="1.6" strokeLinecap="round" />
+                        <circle cx="10" cy="14.4" r="0.95" fill="#1c1917" />
+                      </svg>
+                    </span>
+                  )}
                 </button>
               </li>
             );

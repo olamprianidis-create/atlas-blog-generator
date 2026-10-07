@@ -21,11 +21,12 @@ export interface SectionStyle {
   fontFamily: EmailFont;
   fontSize: number;
   backgroundColor: string;
+  textColor: string;
   align: EmailAlignment;
 }
 
-export const DEFAULT_HEADER_STYLE: SectionStyle = { fontFamily: "helvetica", fontSize: 28, backgroundColor: "#ffffff", align: "center" };
-export const DEFAULT_BODY_STYLE: SectionStyle = { fontFamily: "helvetica", fontSize: 16, backgroundColor: "#ffffff", align: "left" };
+export const DEFAULT_HEADER_STYLE: SectionStyle = { fontFamily: "helvetica", fontSize: 28, backgroundColor: "#ffffff", textColor: "#0f172a", align: "center" };
+export const DEFAULT_BODY_STYLE: SectionStyle = { fontFamily: "helvetica", fontSize: 16, backgroundColor: "#ffffff", textColor: "#0f172a", align: "left" };
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
@@ -37,6 +38,7 @@ export function withSectionDefaults(style: unknown, defaults: SectionStyle): Sec
     fontFamily: EMAIL_FONTS.some((f) => f.value === raw.fontFamily) ? (raw.fontFamily as EmailFont) : defaults.fontFamily,
     fontSize: EMAIL_FONT_SIZES.includes(raw.fontSize as (typeof EMAIL_FONT_SIZES)[number]) ? (raw.fontSize as number) : defaults.fontSize,
     backgroundColor: typeof raw.backgroundColor === "string" && HEX_COLOR.test(raw.backgroundColor) ? raw.backgroundColor : defaults.backgroundColor,
+    textColor: typeof raw.textColor === "string" && HEX_COLOR.test(raw.textColor) ? raw.textColor : defaults.textColor,
     align: EMAIL_ALIGNMENTS.includes(raw.align as EmailAlignment) ? (raw.align as EmailAlignment) : defaults.align,
   };
 }

@@ -10,6 +10,23 @@ import CalendarDayModal, {
 import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
 const GOOGLE_EVENT_COLOR_CLASS = "bg-indigo-500";
+const EMAIL_CAMPAIGN_COLOR_CLASS = "bg-violet-600";
+
+// Email campaigns from /email/campaigns — scheduled ones on their send day,
+// sent ones on the day they went out. Drafts and canceled ones are left off.
+interface EmailCampaignRow {
+  id: string;
+  status: string;
+  subject: string;
+  send_date: string | null;
+  send_at: string | null;
+  started_at: string | null;
+}
+
+function campaignDateStr(c: EmailCampaignRow): string | null {
+  if (c.status === "scheduled") return c.send_date ?? c.send_at?.slice(0, 10) ?? null;
+  return (c.started_at ?? c.send_at)?.slice(0, 10) ?? null;
+}
 
 interface GoogleCalendarListItem {
   id: string;
@@ -175,6 +192,7 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [scheduledArticles, setScheduledArticles] = useState<ScheduledArticleRow[]>([]);
   const [videoUploads, setVideoUploads] = useState<VideoUploadRow[]>([]);
+  const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaignRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -231,6 +249,13 @@ export default function CalendarPage() {
         setScheduledArticles([...scheduledRows, ...publishedRows]);
       })
       .catch((err) => console.error("Failed to load blog posts for calendar:", err));
+
+    fetch("/api/email/campaigns")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: EmailCampaignRow[]) =>
+        setEmailCampaigns(rows.filter((c) => ["scheduled", "sending", "sent", "failed"].includes(c.status)))
+      )
+      .catch((err) => console.error("Failed to load email campaigns for calendar:", err));
 
     loadVideoUploads();
     loadGoogleCalendars();
@@ -518,6 +543,16 @@ export default function CalendarPage() {
         colorClass: platformColorClass(video.platform),
         checked: video.status === "published",
         dragPayload: video.status === "pending" ? { kind: "video", id: video.uploadId } : undefined,
+      });
+    }
+
+    // Auto-tracked like blog posts: checked once the campaign has sent.
+    for (const campaign of emailCampaigns.filter((c) => campaignDateStr(c) === dateStr)) {
+      chips.push({
+        key: `email-${campaign.id}`,
+        label: `Email: ${campaign.subject || "Untitled campaign"}`,
+        colorClass: EMAIL_CAMPAIGN_COLOR_CLASS,
+        checked: campaign.status === "sent",
       });
     }
 
@@ -814,6 +849,10 @@ export default function CalendarPage() {
                 {platform.label}
               </span>
             ))}
+            <span className="flex items-center gap-1.5">
+              <span className={`h-3 w-3 rounded ${EMAIL_CAMPAIGN_COLOR_CLASS}`} />
+              Email campaign
+            </span>
             <span className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded ${NOTE_COLOR_CLASS}`} />
               Notes

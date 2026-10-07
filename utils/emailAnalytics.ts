@@ -88,7 +88,7 @@ function isUnsubscribeLink(link: string | null): boolean {
   return Boolean(link && /\/unsubscribe(\?|$)/.test(link));
 }
 
-function recipientState(s: SendRow): RecipientState {
+export function recipientState(s: Pick<SendRow, "status" | "delivered_at" | "opened_at" | "clicked_at" | "bounced_at" | "complained_at" | "unsubscribed_at">): RecipientState {
   if (s.complained_at) return "complained";
   if (s.bounced_at) return "bounced";
   if (s.status === "failed") return "failed";
@@ -278,4 +278,57 @@ export async function getCampaignOverview(): Promise<CampaignOverview> {
       rates: computeRates(all.counts.get(c.id)!),
     })),
   };
+}
+
+export interface ContactActivityItem {
+  campaignId: string;
+  subject: string;
+  sentAt: string | null;
+  state: RecipientState;
+  openedAt: string | null;
+  clickedAt: string | null;
+  opens: number;
+  clicks: number;
+}
+
+// Every campaign email one contact was sent, newest first (Contacts page).
+// Matched by contact id or by email, since a send made before the contact
+// existed (e.g. a member who later became a contact) has no contact id.
+export async function getContactActivity(contactId: string, email: string | null): Promise<ContactActivityItem[]> {
+  const supabase = getServiceClient();
+  // Quoted so commas/parentheses in an address can't break the filter syntax.
+  const quoted = email ? `"${email.toLowerCase().replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : null;
+  const filter = quoted ? `contact_id.eq.${contactId},email.eq.${quoted}` : `contact_id.eq.${contactId}`;
+  const { data: sends, error } = await supabase
+    .from("email_sends")
+    .select(`${SEND_COLUMNS}, email_campaigns(subject)`)
+    .or(filter)
+    .order("sent_at", { ascending: false, nullsFirst: false })
+    .limit(200);
+  if (error) throw error;
+  const rows = (sends ?? []) as unknown as (SendRow & { email_campaigns: { subject: string } | null })[];
+  if (rows.length === 0) return [];
+
+  const { data: events, error: eventsError } = await supabase
+    .from("email_events")
+    .select("send_id, type, link")
+    .in(
+      "send_id",
+      rows.map((r) => r.id)
+    )
+    .in("type", ["email.opened", "email.clicked"]);
+  if (eventsError) throw eventsError;
+  const count = (sendId: string, type: string) =>
+    (events ?? []).filter((e) => e.send_id === sendId && e.type === type && !(type === "email.clicked" && isUnsubscribeLink(e.link as string | null))).length;
+
+  return rows.map((r) => ({
+    campaignId: r.campaign_id,
+    subject: r.email_campaigns?.subject || "Untitled campaign",
+    sentAt: r.sent_at,
+    state: recipientState(r),
+    openedAt: r.opened_at,
+    clickedAt: r.clicked_at,
+    opens: count(r.id, "email.opened"),
+    clicks: count(r.id, "email.clicked"),
+  }));
 }

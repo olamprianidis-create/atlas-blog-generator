@@ -45,7 +45,7 @@ function styleSection(html: string, style: SectionStyle, paragraphMargin: string
 }
 
 function sectionCell(style: SectionStyle, padding: string): string {
-  return `padding:${padding};background:${style.backgroundColor};text-align:${style.align};font-family:${fontStack(style.fontFamily)};font-size:${style.fontSize}px;line-height:1.5;color:#0f172a`;
+  return `padding:${padding};background:${style.backgroundColor};text-align:${style.align};font-family:${fontStack(style.fontFamily)};font-size:${style.fontSize}px;line-height:1.5;color:${style.textColor}`;
 }
 
 export function renderCampaignEmail({

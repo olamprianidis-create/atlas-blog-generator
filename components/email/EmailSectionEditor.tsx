@@ -185,6 +185,15 @@ export default function EmailSectionEditor({
             />
             Background
           </label>
+          <label title="Text color" className="flex h-7 cursor-pointer items-center gap-1.5 rounded px-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+            <input
+              type="color"
+              value={style.textColor}
+              onChange={(e) => onStyleChange({ ...style, textColor: e.target.value })}
+              className="h-5 w-5 cursor-pointer rounded border border-slate-300 bg-transparent p-0"
+            />
+            Text
+          </label>
           {variant === "body" && (
             <>
               <Divider />
@@ -211,8 +220,9 @@ export default function EmailSectionEditor({
             fontSize: style.fontSize,
             textAlign: style.align,
             backgroundColor: style.backgroundColor,
+            color: style.textColor,
           }}
-          className={`${variant === "body" ? "min-h-[360px] [&_p]:mb-3" : "min-h-[72px] [&_p]:mb-0"} rounded-b-lg px-5 py-4 leading-normal text-slate-900 focus:outline-none [&:empty]:before:text-slate-400 [&:empty]:before:content-[attr(data-placeholder)] [&_a]:text-[#517590] [&_a]:underline [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-[1.25em] [&_h2]:font-bold [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:text-left [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:text-left`}
+          className={`${variant === "body" ? "min-h-[360px] [&_p]:mb-3" : "min-h-[72px] [&_p]:mb-0"} rounded-b-lg px-5 py-4 leading-normal focus:outline-none [&:empty]:before:text-slate-400 [&:empty]:before:content-[attr(data-placeholder)] [&_a]:text-[#517590] [&_a]:underline [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-[1.25em] [&_h2]:font-bold [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:text-left [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:text-left`}
         />
       </div>
     </div>

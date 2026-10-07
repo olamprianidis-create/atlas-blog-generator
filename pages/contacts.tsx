@@ -1,5 +1,8 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AppLayout from "../components/layout/AppLayout";
+import type { ContactActivityItem } from "../utils/emailAnalytics";
+import type { RecipientState } from "../utils/emailAnalyticsShared";
 import ContactImportModal from "../components/contacts/ContactImportModal";
 import {
   Contact,
@@ -118,6 +121,62 @@ function DetailRow({ label, value, href }: { label: string; value: string | null
         </a>
       ) : (
         <p className="text-sm text-white">{value}</p>
+      )}
+    </div>
+  );
+}
+
+const ACTIVITY_LABELS: Record<RecipientState, string> = {
+  queued: "Queued",
+  sent: "Sent",
+  delivered: "Delivered",
+  opened: "Opened",
+  clicked: "Clicked",
+  unsubscribed: "Unsubscribed",
+  bounced: "Bounced",
+  complained: "Marked spam",
+  failed: "Failed",
+};
+
+// Every campaign email this contact was sent (newest first), with what they
+// did with it. Each row opens that campaign's report.
+function EmailActivity({ contactId }: { contactId: string }) {
+  const [items, setItems] = useState<ContactActivityItem[] | null>(null);
+  useEffect(() => {
+    setItems(null);
+    fetch(`/api/contacts/${contactId}/activity`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setItems(data as ContactActivityItem[]))
+      .catch(() => setItems([]));
+  }, [contactId]);
+
+  return (
+    <div className="rounded-xl bg-white/10 px-4 py-3 backdrop-blur">
+      <p className="text-xs font-medium text-violet-200">Email activity</p>
+      {items === null ? (
+        <p className="mt-1 text-sm text-slate-300">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="mt-1 text-sm text-slate-300">No campaign emails sent to this contact yet.</p>
+      ) : (
+        <ul className="mt-1 divide-y divide-white/10">
+          {items.map((item) => (
+            <li key={item.campaignId}>
+              <Link href={`/email/campaigns/${item.campaignId}/report`} className="flex items-center gap-3 py-2 hover:opacity-80">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-white">{item.subject}</p>
+                  <p className="text-xs text-slate-300">
+                    {item.sentAt ? new Date(item.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Not sent yet"}
+                    {item.opens > 0 && ` · ${item.opens} open${item.opens === 1 ? "" : "s"}`}
+                    {item.clicks > 0 && ` · ${item.clicks} click${item.clicks === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  {ACTIVITY_LABELS[item.state]}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -604,6 +663,7 @@ export default function ContactsPage() {
                       <p className="text-xs font-medium text-violet-200">Notes</p>
                       <p className="mt-1 whitespace-pre-wrap text-sm text-white">{selectedContact.notes}</p>
                     </div>
+                    <EmailActivity contactId={selectedContact.id} />
                   </div>
                 )
               )}
