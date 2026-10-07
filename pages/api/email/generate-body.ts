@@ -3,7 +3,7 @@ import { generateJSON } from "../../../utils/anthropic";
 import { errorMessage } from "../../../utils/errorMessage";
 
 const MOCK = {
-  html: "<p>[Mock] Hi there,</p><p>This is placeholder email content — set ANTHROPIC_MOCK_MODE=false for real output.</p><p>— The ATLAS team</p>",
+  html: "<p>[Mock] Hey {{first_name}},</p><p>This is placeholder email content — set ANTHROPIC_MOCK_MODE=false for real output.</p><p>— The ATLAS team</p>",
 };
 
 // Step 4's "Generate" button: drafts the email body as simple HTML the
@@ -27,7 +27,7 @@ What it should say: ${brief}
 Guidelines:
 - Warm, direct, personal — written by a real person, not a corporation. Short paragraphs (1–3 sentences).
 - 120–250 words unless the brief clearly needs more.
-- Open with a greeting like "Hi there," (no name merge tags).
+- Open with exactly "Hey {{first_name}}," as its own paragraph — {{first_name}} is replaced with each recipient's first name when sent. Use no other merge tags.
 - One clear call to action. If a link is mentioned in the brief, use it as an <a href> on descriptive text; never invent URLs.
 - Sign off with the sender's first name or "The ATLAS team".
 - Never invent facts not given above — no made-up names, pronouns/genders, numbers, dates, prices, scarcity ("spots are limited") or claims. If a detail is unknown, leave it out.

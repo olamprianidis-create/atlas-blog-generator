@@ -21,6 +21,8 @@ import {
   DEFAULT_BODY_STYLE,
   DEFAULT_HEADER_STYLE,
   EmailCampaign,
+  personalizeHtml,
+  personalizeText,
   withSectionDefaults,
 } from "./emailCampaigns";
 
@@ -65,21 +67,29 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-function buildMessage(campaign: EmailCampaign, to: string, sendId: string | null, subjectPrefix = "") {
+function buildMessage(
+  campaign: EmailCampaign,
+  to: string,
+  sendId: string | null,
+  firstName: string | null,
+  subjectPrefix = ""
+) {
   const sender = getSenderSettings();
   const unsubscribe = unsubscribeUrl(sendId);
+  const headerHtml = personalizeHtml(campaign.header_html, firstName);
+  const bodyHtml = personalizeHtml(campaign.body_html, firstName);
   const html = renderCampaignEmail({
-    headerHtml: campaign.header_html,
+    headerHtml,
     headerStyle: withSectionDefaults(campaign.header_style, DEFAULT_HEADER_STYLE),
-    bodyHtml: campaign.body_html,
+    bodyHtml,
     bodyStyle: withSectionDefaults(campaign.body_style, DEFAULT_BODY_STYLE),
-    previewText: campaign.preview_text,
+    previewText: personalizeText(campaign.preview_text, firstName),
     mailingAddress: sender.mailingAddress,
     unsubscribeUrl: unsubscribe,
   });
   const text = [
-    htmlToText(campaign.header_html),
-    htmlToText(campaign.body_html),
+    htmlToText(headerHtml),
+    htmlToText(bodyHtml),
     `—\n${sender.mailingAddress}\nUnsubscribe: ${unsubscribe}`,
   ]
     .filter(Boolean)
@@ -88,7 +98,7 @@ function buildMessage(campaign: EmailCampaign, to: string, sendId: string | null
     from: `${campaign.from_name.replace(/[<>"]/g, "")} <${sender.fromAddress}>`,
     to,
     replyTo: sender.replyTo,
-    subject: `${subjectPrefix}${campaign.subject}`,
+    subject: `${subjectPrefix}${personalizeText(campaign.subject, firstName)}`,
     html,
     text,
     // Lets the webhook (pages/api/email/webhook.ts) match every event to
@@ -121,7 +131,15 @@ async function loadCampaign(id: string): Promise<EmailCampaign | null> {
 export async function sendTestEmail(campaignId: string, to: string): Promise<void> {
   const campaign = await loadCampaign(campaignId);
   if (!campaign) throw new Error("Campaign not found");
-  const { error } = await getResend().emails.send(buildMessage(campaign, to, null, "[Test] "));
+  // Use the name on file for that address, so the test reads like the real thing.
+  const { data: contact } = await getServiceClient()
+    .from("contacts")
+    .select("first_name")
+    .ilike("email", to.trim().replace(/[%_\\]/g, "\\$&"))
+    .limit(1)
+    .maybeSingle();
+  const firstName = (contact?.first_name as string | null | undefined) ?? null;
+  const { error } = await getResend().emails.send(buildMessage(campaign, to, null, firstName, "[Test] "));
   if (error) throw new Error(error.message);
 }
 
@@ -178,7 +196,7 @@ async function sendQueued(campaign: EmailCampaign, deadline: number): Promise<vo
   while (Date.now() < deadline) {
     const { data: rows, error } = await supabase
       .from("email_sends")
-      .select("id, email")
+      .select("id, email, first_name")
       .eq("campaign_id", campaign.id)
       .eq("status", "queued")
       .order("id")
@@ -192,7 +210,7 @@ async function sendQueued(campaign: EmailCampaign, deadline: number): Promise<vo
       .update(rows.map((r) => r.id).join(","))
       .digest("hex")
       .slice(0, 32)}`;
-    const messages = rows.map((r) => buildMessage(campaign, r.email as string, r.id as string));
+    const messages = rows.map((r) => buildMessage(campaign, r.email as string, r.id as string, (r.first_name as string | null) ?? null));
     const { data, error: sendError } = await resend.batch.send(messages, { idempotencyKey });
     const now = new Date().toISOString();
 

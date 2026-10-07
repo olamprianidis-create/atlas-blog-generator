@@ -6,6 +6,7 @@ import {
   EMAIL_FONT_SIZES,
   EmailAlignment,
   EmailFont,
+  FIRST_NAME_TAG,
   SectionStyle,
   fontStack,
 } from "../../utils/emailCampaigns";
@@ -207,6 +208,12 @@ export default function EmailSectionEditor({
             </>
           )}
           <ToolbarButton label="Clear" title="Clear formatting" onClick={() => exec("removeFormat")} />
+          <Divider />
+          <ToolbarButton
+            label="+ First name"
+            title={`Insert ${FIRST_NAME_TAG} — replaced with each person's first name when sent ("there" if we don't have one)`}
+            onClick={() => exec("insertText", FIRST_NAME_TAG)}
+          />
         </div>
         <div
           ref={ref}

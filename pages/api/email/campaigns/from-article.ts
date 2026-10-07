@@ -25,7 +25,7 @@ const MOCK: Draft = {
   subject: "[Mock] Subject",
   preview_text: "[Mock] Preview line",
   header: "[Mock] Header",
-  body_html: "<p>[Mock] Hi there,</p><p>Set ANTHROPIC_MOCK_MODE=false for real output.</p>",
+  body_html: "<p>[Mock] Hey {{first_name}},</p><p>Set ANTHROPIC_MOCK_MODE=false for real output.</p>",
 };
 
 // "Create Email Blast" on blog Step 5: drafts an email campaign from a
@@ -66,7 +66,7 @@ Write:
 1. "subject" — an email subject line (under 60 characters) that makes the reader want to open it. Personal, curious or benefit-led; not clickbait, no ALL CAPS, no emoji.
 2. "preview_text" — the inbox preview line (40–110 characters) that complements the subject rather than repeating it.
 3. "header" — a short headline shown at the top of the email (under 60 characters).
-4. "body_html" — the email body. It must deliver real value on its own: lead with the article's single most useful insight in a sentence or two, then 2–4 short takeaways (a <ul> works well), then invite them to read the full article with ONE link: <a href="${url}">descriptive link text</a>. 150–250 words. Warm, direct, personal — written by a real person, not a corporation; short paragraphs (1–3 sentences). Open with "Hi there," (no name merge tags). No sign-off name (leave the last line as a natural closing sentence).
+4. "body_html" — the email body. It must deliver real value on its own: lead with the article's single most useful insight in a sentence or two, then 2–4 short takeaways (a <ul> works well), then invite them to read the full article with ONE link: <a href="${url}">descriptive link text</a>. 150–250 words. Warm, direct, personal — written by a real person, not a corporation; short paragraphs (1–3 sentences). Open with exactly "Hey {{first_name}}," as its own paragraph ({{first_name}} is replaced with each recipient's first name when sent; use no other merge tags). No sign-off name (leave the last line as a natural closing sentence).
 
 Rules:
 - Only use facts that are in the article. Never invent names, numbers, dates, quotes or claims.

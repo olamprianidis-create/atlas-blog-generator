@@ -178,3 +178,29 @@ export function campaignProblems(campaign: EmailCampaign, now: Date = new Date()
   if (!campaign.body_html.replace(/<[^>]+>/g, "").trim()) problems.push("Write the email content (Step 4).");
   return problems;
 }
+
+// Personalization: {{first_name}} in the subject, preview line, header or
+// body becomes each recipient's first name at send time (email_sends
+// already stores it), or "there" when a contact has no first name — so
+// "Hey {{first_name}}," reads "Hey Maria," or "Hey there,".
+export const FIRST_NAME_TAG = "{{first_name}}";
+export const FIRST_NAME_FALLBACK = "there";
+const FIRST_NAME_PATTERN = /\{\{\s*first_name\s*\}\}/gi;
+
+export function displayFirstName(firstName: string | null | undefined): string {
+  const name = (firstName ?? "").trim();
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : FIRST_NAME_FALLBACK;
+}
+
+export function personalizeText(text: string, firstName: string | null | undefined): string {
+  return text.replace(FIRST_NAME_PATTERN, () => displayFirstName(firstName));
+}
+
+export function personalizeHtml(html: string, firstName: string | null | undefined): string {
+  const name = displayFirstName(firstName)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return html.replace(FIRST_NAME_PATTERN, () => name);
+}

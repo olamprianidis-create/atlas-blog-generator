@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { renderCampaignEmail } from "../../utils/emailTemplate";
-import { DEFAULT_BODY_STYLE, DEFAULT_HEADER_STYLE, EmailCampaign, withSectionDefaults } from "../../utils/emailCampaigns";
+import {
+  DEFAULT_BODY_STYLE,
+  DEFAULT_HEADER_STYLE,
+  EmailCampaign,
+  personalizeHtml,
+  personalizeText,
+  withSectionDefaults,
+} from "../../utils/emailCampaigns";
+
+// Previews fill {{first_name}} with a sample name so they read like a real email.
+export const PREVIEW_FIRST_NAME = "Odysseas";
 
 // How the email shows up in an inbox list — sender, address, subject,
 // preview line — mirroring the layout the user sketched.
@@ -26,8 +36,12 @@ export function InboxPreview({
             <p className="shrink-0 text-xs text-slate-400">9:41 AM</p>
           </div>
           <p className="truncate text-xs text-slate-500">{fromAddress}</p>
-          <p className="mt-1 truncate text-sm font-semibold text-slate-900">{subject || "Your subject line"}</p>
-          <p className="line-clamp-2 text-sm text-slate-500">{previewText || "Your preview line shows here…"}</p>
+          <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+            {personalizeText(subject, PREVIEW_FIRST_NAME) || "Your subject line"}
+          </p>
+          <p className="line-clamp-2 text-sm text-slate-500">
+            {personalizeText(previewText, PREVIEW_FIRST_NAME) || "Your preview line shows here…"}
+          </p>
         </div>
       </div>
     </div>
@@ -45,11 +59,11 @@ export function EmailPreview({
 }) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const html = renderCampaignEmail({
-    headerHtml: campaign.header_html,
+    headerHtml: personalizeHtml(campaign.header_html, PREVIEW_FIRST_NAME),
     headerStyle: withSectionDefaults(campaign.header_style, DEFAULT_HEADER_STYLE),
-    bodyHtml: campaign.body_html,
+    bodyHtml: personalizeHtml(campaign.body_html, PREVIEW_FIRST_NAME),
     bodyStyle: withSectionDefaults(campaign.body_style, DEFAULT_BODY_STYLE),
-    previewText: campaign.preview_text,
+    previewText: personalizeText(campaign.preview_text, PREVIEW_FIRST_NAME),
     mailingAddress,
     unsubscribeUrl: "#",
   });

@@ -95,6 +95,9 @@ export default function StepSubject({
             maxLength={150}
             className={inputClass}
           />
+          <span className="mt-1 block text-xs text-slate-400">
+            Type {"{{first_name}}"} in either line to use each person&apos;s first name.
+          </span>
         </label>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4">
