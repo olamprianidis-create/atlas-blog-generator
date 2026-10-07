@@ -1,22 +1,24 @@
 import { useState } from "react";
-import EmailBodyEditor, { sanitizeEmailHtml } from "./EmailBodyEditor";
+import EmailSectionEditor, { sanitizeEmailHtml } from "./EmailSectionEditor";
 import { EmailPreview } from "./EmailPreviews";
+import {
+  CampaignEdits,
+  DEFAULT_BODY_STYLE,
+  DEFAULT_HEADER_STYLE,
+  EmailCampaign,
+  withSectionDefaults,
+} from "../../utils/emailCampaigns";
 
 export default function StepContent({
-  bodyHtml,
+  campaign,
   onChange,
-  subject,
-  fromName,
-  previewText,
   mailingAddress,
 }: {
-  bodyHtml: string;
-  onChange: (html: string) => void;
-  subject: string;
-  fromName: string;
-  previewText: string;
+  campaign: EmailCampaign;
+  onChange: (edits: CampaignEdits) => void;
   mailingAddress: string;
 }) {
+  const { body_html: bodyHtml, subject, from_name: fromName } = campaign;
   const [brief, setBrief] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function StepContent({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Generation failed");
-      onChange(sanitizeEmailHtml(data.html as string));
+      onChange({ body_html: sanitizeEmailHtml(data.html as string) });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
@@ -48,8 +50,8 @@ export default function StepContent({
       <div>
         <h2 className="text-xl font-semibold text-slate-900">Write the email</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Write it yourself or generate a draft and edit it. The ATLAS header, your mailing address and the
-          unsubscribe link are added automatically.
+          Write it yourself or generate a draft and edit it. The header is optional — leave it empty to skip it.
+          Your name, mailing address, thank-you note and the unsubscribe link are added automatically.
         </p>
       </div>
 
@@ -74,8 +76,27 @@ export default function StepContent({
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <EmailBodyEditor value={bodyHtml} onChange={onChange} />
-        <EmailPreview bodyHtml={bodyHtml} previewText={previewText} mailingAddress={mailingAddress} />
+        <div className="space-y-6">
+          <EmailSectionEditor
+            title="Header"
+            variant="header"
+            value={campaign.header_html}
+            onChange={(html) => onChange({ header_html: html })}
+            style={withSectionDefaults(campaign.header_style, DEFAULT_HEADER_STYLE)}
+            onStyleChange={(style) => onChange({ header_style: style })}
+            placeholder="Optional header, e.g. “You're invited”"
+          />
+          <EmailSectionEditor
+            title="Body"
+            variant="body"
+            value={bodyHtml}
+            onChange={(html) => onChange({ body_html: html })}
+            style={withSectionDefaults(campaign.body_style, DEFAULT_BODY_STYLE)}
+            onStyleChange={(style) => onChange({ body_style: style })}
+            placeholder="Write your email here…"
+          />
+        </div>
+        <EmailPreview campaign={campaign} mailingAddress={mailingAddress} />
       </div>
     </div>
   );

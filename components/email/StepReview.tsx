@@ -133,7 +133,7 @@ export default function StepReview({
         )}
       </div>
 
-      <EmailPreview bodyHtml={campaign.body_html} previewText={campaign.preview_text} mailingAddress={sender.mailingAddress} />
+      <EmailPreview campaign={campaign} mailingAddress={sender.mailingAddress} />
     </div>
   );
 }

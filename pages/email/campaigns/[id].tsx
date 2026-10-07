@@ -247,14 +247,7 @@ export default function CampaignWizardPage() {
               />
             )}
             {step === 4 && (
-              <StepContent
-                bodyHtml={campaign.body_html}
-                onChange={(html) => update({ body_html: html })}
-                subject={campaign.subject}
-                fromName={campaign.from_name}
-                previewText={campaign.preview_text}
-                mailingAddress={sender.mailingAddress}
-              />
+              <StepContent campaign={campaign} onChange={update} mailingAddress={sender.mailingAddress} />
             )}
             {step === 5 && (
               <StepReview

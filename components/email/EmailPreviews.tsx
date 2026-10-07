@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { renderCampaignEmail } from "../../utils/emailTemplate";
+import { DEFAULT_BODY_STYLE, DEFAULT_HEADER_STYLE, EmailCampaign, withSectionDefaults } from "../../utils/emailCampaigns";
 
 // How the email shows up in an inbox list — sender, address, subject,
 // preview line — mirroring the layout the user sketched.
@@ -36,16 +37,22 @@ export function InboxPreview({
 // The full rendered email in a sandboxed iframe (same template the real
 // send uses), with a desktop/mobile width toggle.
 export function EmailPreview({
-  bodyHtml,
-  previewText,
+  campaign,
   mailingAddress,
 }: {
-  bodyHtml: string;
-  previewText: string;
+  campaign: Pick<EmailCampaign, "header_html" | "header_style" | "body_html" | "body_style" | "preview_text">;
   mailingAddress: string;
 }) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
-  const html = renderCampaignEmail({ bodyHtml, previewText, mailingAddress, unsubscribeUrl: "#" });
+  const html = renderCampaignEmail({
+    headerHtml: campaign.header_html,
+    headerStyle: withSectionDefaults(campaign.header_style, DEFAULT_HEADER_STYLE),
+    bodyHtml: campaign.body_html,
+    bodyStyle: withSectionDefaults(campaign.body_style, DEFAULT_BODY_STYLE),
+    previewText: campaign.preview_text,
+    mailingAddress,
+    unsubscribeUrl: "#",
+  });
 
   return (
     <div>
