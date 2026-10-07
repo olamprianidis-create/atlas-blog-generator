@@ -19,12 +19,24 @@ const ALLOWED_TAGS = {
 
 export type SectionVariant = keyof typeof ALLOWED_TAGS;
 
+// Text typed before the first Enter isn't wrapped in any block; wrap it so
+// the first line gets the same paragraph spacing as the rest in the email.
+function wrapLeadingText(html: string): string {
+  const firstBlock = html.search(/<(p|h2|ul|ol)[\s>]/);
+  const leading = firstBlock === -1 ? html : html.slice(0, firstBlock);
+  if (!leading.replace(/<br\s*\/?>/g, "").trim()) return html;
+  return `<p>${leading}</p>${firstBlock === -1 ? "" : html.slice(firstBlock)}`;
+}
+
+// Every Enter is a line: empty paragraphs (<p><br></p>) are kept as blank
+// lines rather than stripped — stripping them made blank lines vanish from
+// the preview and the sent email.
 export function sanitizeEmailHtml(html: string, variant: SectionVariant = "body"): string {
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ALLOWED_TAGS[variant], ALLOWED_ATTR: ["href"] })
-    // contentEditable emits <div> per line; the template styles <p>.
+  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS: ALLOWED_TAGS[variant], ALLOWED_ATTR: ["href"] })
+    // contentEditable emits <div> per line in some browsers; the template styles <p>.
     .replace(/<div>/g, "<p>")
-    .replace(/<\/div>/g, "</p>")
-    .replace(/<p><br><\/p>/g, "");
+    .replace(/<\/div>/g, "</p>");
+  return wrapLeadingText(clean);
 }
 
 function ToolbarButton({

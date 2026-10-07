@@ -35,6 +35,8 @@ function hasText(html: string): boolean {
 function styleSection(html: string, style: SectionStyle, paragraphMargin: string): string {
   const size = `font-size:${style.fontSize}px;line-height:1.5`;
   return html
+    // Blank lines from the editor; some clients (Outlook) collapse <p><br></p>.
+    .replace(/<p><br\s*\/?><\/p>/g, "<p>&nbsp;</p>")
     .replace(/<p(?=[\s>])/g, `<p style="margin:${paragraphMargin};${size}"`)
     .replace(/<h2(?=[\s>])/g, `<h2 style="margin:24px 0 12px;font-size:${Math.round(style.fontSize * 1.25)}px;line-height:1.3"`)
     .replace(/<ul(?=[\s>])/g, `<ul style="margin:0 0 16px;padding-left:24px;${size};text-align:left"`)
