@@ -37,7 +37,8 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, prompt, extractedTopic, keywords, research, documents } = req.body as {
+  const { category, prompt, extractedTopic, keywords, research, documents, title } = req.body as {
+    title?: unknown;
     category?: unknown;
     prompt?: unknown;
     extractedTopic?: unknown;
@@ -77,7 +78,9 @@ export default async function handler(
       ...documentsToResearchQueries(isReferenceDocumentList(documents) ? documents : []),
     ];
 
+    const customTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 200) : undefined;
     const { outline } = await generateOutline({
+      title: customTitle,
       categoryLabel,
       topic,
       keywords,

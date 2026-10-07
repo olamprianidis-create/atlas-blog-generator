@@ -10,6 +10,8 @@ interface StepOneTopicProps {
   onPromptChange: (value: string) => void;
   preliminaryKeywords: string;
   onPreliminaryKeywordsChange: (value: string) => void;
+  customTitle: string;
+  onCustomTitleChange: (value: string) => void;
   authorUserId: string | null;
   onAuthorChange: (memberId: string | null) => void;
   referenceDocuments: UploadedDocument[];
@@ -24,6 +26,8 @@ export default function StepOneTopic({
   onPromptChange,
   preliminaryKeywords,
   onPreliminaryKeywordsChange,
+  customTitle,
+  onCustomTitleChange,
   authorUserId,
   onAuthorChange,
   referenceDocuments,
@@ -66,6 +70,25 @@ export default function StepOneTopic({
           placeholder="Ask a question, share a statistic, or pick a topic..."
           rows={6}
           className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="mt-6">
+        <label htmlFor="custom-title" className="mb-2 block text-sm font-medium text-slate-700">
+          Title <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <p className="mb-2 text-xs text-slate-500">
+          Used exactly as written — the outline and article are built around it. Leave blank and
+          Claude will write one.
+        </p>
+        <input
+          id="custom-title"
+          type="text"
+          value={customTitle}
+          onChange={(event) => onCustomTitleChange(event.target.value)}
+          maxLength={200}
+          placeholder="e.g. Why Smart Capital Is Pivoting to Multifamily in LA"
+          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 

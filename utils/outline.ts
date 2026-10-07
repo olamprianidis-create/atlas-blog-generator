@@ -23,6 +23,9 @@ export interface OutlineGenerationResult {
 interface GenerateOutlineInput {
   categoryLabel: string;
   topic: string;
+  // Optional title the admin set on Step 1 — the outline is built to
+  // deliver on it (the article step then uses it verbatim).
+  title?: string;
   keywords: string[];
   research: ResearchQuery[];
 }
@@ -69,7 +72,8 @@ export async function generateOutline(input: GenerateOutlineInput): Promise<Outl
 
 Category: ${input.categoryLabel}
 Topic / user prompt: ${input.topic}
-Target keywords (from keyword research — weave these into the outline naturally): ${input.keywords.join(", ") || "(none provided)"}
+${input.title ? `Article title (chosen by the editor — fixed, do not change it; shape the outline so the article fully delivers on this title): ${input.title}
+` : ""}Target keywords (from keyword research — weave these into the outline naturally): ${input.keywords.join(", ") || "(none provided)"}
 
 Research findings:
 ${researchSummary}

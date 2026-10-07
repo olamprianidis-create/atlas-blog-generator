@@ -73,8 +73,10 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { category, topic, outline, keywords, research, documents, relatedArticles, editInstructions } =
-    req.body as GenerateArticleRequestBody;
+  const { category, topic, outline, keywords, research, documents, relatedArticles, editInstructions, title: rawTitle } =
+    req.body as GenerateArticleRequestBody & { title?: unknown };
+  // Optional title from Step 1, used verbatim.
+  const customTitle = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle.trim().slice(0, 200) : undefined;
 
   if (!isOutline(outline)) {
     return res.status(400).json({ error: "Missing or invalid outline" });
@@ -110,6 +112,7 @@ export default async function handler(
       research: researchList,
       relatedArticles: relatedArticlesList,
       editInstructions: editInstructionsText,
+      title: customTitle,
     });
 
     const wordCount = countWords(markdown);

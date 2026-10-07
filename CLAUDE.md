@@ -229,7 +229,11 @@ Per-article view/engagement stats, added 2026-08-27. Nothing existed anywhere fo
 
 ## Topics/categories (`utils/types.ts` `CATEGORIES`, mirrored in the Website's `ArticleCategory` type)
 
-The category list is a single source of truth in `utils/types.ts` — the dropdown, filters, and Supabase's `category` column all read from it, so adding a new one (e.g. Finance, added 2026-08-27) means: add it to `CATEGORIES` here, add it to the mirrored `ArticleCategory` union in the Website's `src/lib/supabase.ts`, and add a migration widening the Postgres enum (`supabase/migrations/0011_add_finance_category.sql` — **run this manually**, `ALTER TYPE ... ADD VALUE` can't be applied any other way from this environment). No color-map or other hardcoded category list exists elsewhere in either repo to keep in sync.
+The category list is a single source of truth in `utils/types.ts` — the dropdown, filters, and Supabase's `category` column all read from it, so adding a new one (e.g. Finance, added 2026-08-27) means: add it to `CATEGORIES` here, add it to the mirrored `ArticleCategory` union in the Website's `src/lib/supabase.ts`, and add a migration widening the Postgres enum (`supabase/migrations/0011_add_finance_category.sql` — **run this manually**, `ALTER TYPE ... ADD VALUE` can't be applied any other way from this environment). No color-map or other hardcoded category list exists elsewhere in either repo to keep in sync. Real Estate (`real_estate`) was added the same way 2026-10-07 (`0026_add_real_estate_category.sql`, applied; the Website's `categoryLabel()` derives "Real Estate" from the value).
+
+## Optional article title (Step 1)
+
+Step 1 has an optional **Title** field (added 2026-10-07, like Preliminary Keywords). When set, it's sent as `title` to both `/api/generate-outline` (the outline is shaped to deliver on it) and `/api/generate-article` (the prompt demands it verbatim, and `withExactTitle()` in `utils/article.ts` then forces it as both the returned title and the markdown H1 regardless of what the model wrote). Stored as `customTitle` in the draft state; included in the outline/article regeneration signatures so changing it regenerates. Blank = Claude writes the title, as before.
 
 ---
 

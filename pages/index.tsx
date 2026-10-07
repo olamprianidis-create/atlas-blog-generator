@@ -55,6 +55,7 @@ interface DraftState {
   selectedCategory: Category | null;
   prompt: string;
   preliminaryKeywords: string;
+  customTitle?: string; // optional, added 2026-10-07 — older drafts don't have it
   authorUserId: string | null;
   referenceDocuments: UploadedDocument[];
   headerImageUrl: string | null;
@@ -80,6 +81,7 @@ interface ResearchSignatureInput {
 
 interface OutlineSignatureInput {
   selectedCategory: Category | null;
+  customTitle: string;
   extractedTopic: string;
   keywordTexts: string[];
   documentKeys: string[];
@@ -87,6 +89,7 @@ interface OutlineSignatureInput {
 
 interface ArticleSignatureInput {
   selectedCategory: Category | null;
+  customTitle: string;
   topic: string;
   outline: BlogOutline;
   keywordTexts: string[];
@@ -124,6 +127,8 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [prompt, setPrompt] = useState("");
   const [preliminaryKeywords, setPreliminaryKeywords] = useState("");
+  // Optional exact article title (Step 1) — used verbatim when set.
+  const [customTitle, setCustomTitle] = useState("");
   const [authorUserId, setAuthorUserId] = useState<string | null>(null);
   const [referenceDocuments, setReferenceDocuments] = useState<UploadedDocument[]>([]);
 
@@ -315,6 +320,7 @@ export default function Home() {
 
     const signature = computeOutlineSignature({
       selectedCategory,
+      customTitle: customTitle.trim(),
       extractedTopic,
       keywordTexts: keywords.map((k) => k.text),
       documentKeys: documentKeysFor(referenceDocuments),
@@ -334,6 +340,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: selectedCategory,
+          title: customTitle.trim() || undefined,
           prompt,
           extractedTopic,
           keywords: keywords.map((k) => k.text),
@@ -367,6 +374,7 @@ export default function Home() {
     setSelectedCategory(null);
     setPrompt("");
     setPreliminaryKeywords("");
+    setCustomTitle("");
     setAuthorUserId(null);
     setReferenceDocuments([]);
     setHeaderImageUrl(null);
@@ -412,6 +420,7 @@ export default function Home() {
       selectedCategory,
       prompt,
       preliminaryKeywords,
+      customTitle,
       authorUserId,
       referenceDocuments,
       headerImageUrl,
@@ -433,6 +442,7 @@ export default function Home() {
     setSelectedCategory(state.selectedCategory);
     setPrompt(state.prompt);
     setPreliminaryKeywords(state.preliminaryKeywords ?? "");
+    setCustomTitle(state.customTitle ?? "");
     setAuthorUserId(state.authorUserId ?? null);
     setReferenceDocuments(state.referenceDocuments ?? []);
     setHeaderImageUrl(state.headerImageUrl);
@@ -466,6 +476,7 @@ export default function Home() {
       setLastOutlineSignature(
         computeOutlineSignature({
           selectedCategory: state.selectedCategory,
+          customTitle: (state.customTitle ?? "").trim(),
           extractedTopic: state.extractedTopic,
           keywordTexts: state.keywords.map((k) => k.text),
           documentKeys,
@@ -476,6 +487,7 @@ export default function Home() {
       setLastArticleSignature(
         computeArticleSignature({
           selectedCategory: state.selectedCategory,
+          customTitle: (state.customTitle ?? "").trim(),
           topic: state.extractedTopic || state.prompt,
           outline: state.outline,
           keywordTexts: state.keywords.map((k) => k.text),
@@ -487,7 +499,7 @@ export default function Home() {
 
   async function handleSaveDraft() {
     const title =
-      articleData?.title || extractedTopic || prompt.slice(0, 60) || "Untitled draft";
+      articleData?.title || customTitle.trim() || extractedTopic || prompt.slice(0, 60) || "Untitled draft";
 
     const response = await fetch("/api/drafts", {
       method: "POST",
@@ -594,6 +606,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: selectedCategory,
+          title: customTitle.trim() || undefined,
           topic: extractedTopic || prompt,
           outline: outlineArg,
           keywords: keywords.map((k) => k.text),
@@ -617,6 +630,7 @@ export default function Home() {
       setLastArticleSignature(
         computeArticleSignature({
           selectedCategory,
+          customTitle: customTitle.trim(),
           topic: extractedTopic || prompt,
           outline: outlineArg,
           keywordTexts: keywords.map((k) => k.text),
@@ -637,6 +651,7 @@ export default function Home() {
 
     const signature = computeArticleSignature({
       selectedCategory,
+      customTitle: customTitle.trim(),
       topic: extractedTopic || prompt,
       outline: parsed,
       keywordTexts: keywords.map((k) => k.text),
@@ -784,6 +799,8 @@ export default function Home() {
           prompt={prompt}
           onPromptChange={setPrompt}
           preliminaryKeywords={preliminaryKeywords}
+          customTitle={customTitle}
+          onCustomTitleChange={setCustomTitle}
           onPreliminaryKeywordsChange={setPreliminaryKeywords}
           authorUserId={authorUserId}
           onAuthorChange={setAuthorUserId}

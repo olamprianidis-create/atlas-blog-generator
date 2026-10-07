@@ -13,6 +13,9 @@ export interface ArticleGenerationInput {
   research: ResearchQuery[];
   relatedArticles: RelatedArticleItem[];
   editInstructions?: string;
+  // Optional title the admin set on Step 1 — used verbatim (also enforced
+  // after generation, see generateArticle()).
+  title?: string;
 }
 
 // Used only for MOCK_MODE test output when no real published articles are
@@ -258,6 +261,12 @@ function parseArticleResponse(text: string): ArticleGenerationResult {
   };
 }
 
+function withExactTitle<T extends { title: string; markdown: string }>(article: T, title: string): T {
+  const h1 = /^#[ \t]+.+$/m;
+  const markdown = h1.test(article.markdown) ? article.markdown.replace(h1, () => `# ${title}`) : `# ${title}\n\n${article.markdown}`;
+  return { ...article, title, markdown };
+}
+
 const TEMPLATE_PATH = path.join(process.cwd(), "Blog_Structure_Prompt_UPDATED.md");
 
 function loadTemplate(): string {
@@ -274,7 +283,7 @@ export async function generateArticle(input: ArticleGenerationInput): Promise<Ar
 
   const mock = buildMockMarkdown(input, mainKeyword, longTail);
   const mockValue: ArticleGenerationResult = {
-    title: mock.title,
+    title: input.title || mock.title,
     markdown: mock.markdown,
     metaDescription: buildMockMetaDescription(input.topic, mainKeyword, longTail),
   };
@@ -304,7 +313,8 @@ ${template}`;
 
 Category: ${input.categoryLabel}
 Topic: ${input.topic}
-Approved keywords (first is the main keyword, rest are long-tail): ${input.keywords.join(", ")}
+${input.title ? `Title (chosen by the editor — use it EXACTLY, character for character, both on the TITLE line and as the # H1; do not rephrase, shorten or add to it): ${input.title}
+` : ""}Approved keywords (first is the main keyword, rest are long-tail): ${input.keywords.join(", ")}
 
 Approved outline:
 ${JSON.stringify(input.outline, null, 2)}
@@ -344,7 +354,10 @@ META_DESCRIPTION: <the meta description, one line, no quotes, aim for exactly 48
     { maxTokens: 16000, cachedContext },
     buildMockDelimitedText(mockValue)
   );
-  const result = parseArticleResponse(rawText);
+  const parsed = parseArticleResponse(rawText);
+  // The editor's title wins even if the model paraphrased it: set it as
+  // the title and as the markdown's H1 (inserting one if missing).
+  const result = input.title ? withExactTitle(parsed, input.title) : parsed;
 
   // Deterministic safety net — don't rely on the model hitting the
   // character range precisely, since it sometimes runs short.

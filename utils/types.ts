@@ -5,7 +5,8 @@ export type Category =
   | "community"
   | "friends"
   | "sports"
-  | "finance";
+  | "finance"
+  | "real_estate";
 
 export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "entrepreneurship", label: "Entrepreneurship" },
@@ -15,6 +16,7 @@ export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "friends", label: "Friends" },
   { value: "sports", label: "Sports" },
   { value: "finance", label: "Finance" },
+  { value: "real_estate", label: "Real Estate" },
 ];
 
 export const STEPS = [
