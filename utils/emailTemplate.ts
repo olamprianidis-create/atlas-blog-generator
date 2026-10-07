@@ -7,7 +7,7 @@
 import { SectionStyle, fontStack } from "./emailCampaigns";
 
 // Footer sign-off (requested 2026-10-07): sender name, mailing address,
-// a thank-you note, then the unsubscribe link.
+// a thank-you note that ends with the unsubscribe link.
 const FOOTER_NAME = "Odysseas Lamprianidis";
 const FOOTER_MESSAGE =
   "Thank you for your support, love, and encouragement over the years. I'm grateful to say we've built something beautiful together. My hope is you find much value here, make many great friends, and feel empowered to make positive change.";
@@ -85,8 +85,8 @@ ${preheader}
       <tr><td style="padding:24px 32px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;line-height:1.6;color:#64748b">
         ${FOOTER_NAME}<br>
         ${escapeHtml(mailingAddress)}<br><br>
-        ${escapeHtml(FOOTER_MESSAGE)}<br><br>
-        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#64748b;text-decoration:underline">Unsubscribe</a>
+        ${escapeHtml(FOOTER_MESSAGE)} If I have failed to help you achieve this, you are welcome to
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#64748b;text-decoration:underline">unsubscribe</a> here.
       </td></tr>
     </table>
   </td></tr>
