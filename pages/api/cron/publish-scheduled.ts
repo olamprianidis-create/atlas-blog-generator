@@ -4,6 +4,7 @@ import { publishArticleById } from "../../../utils/publish";
 import { publishVideoUploadById } from "../../../utils/publishVideo";
 import { cleanupOldUploads } from "../../../utils/cleanupOldUploads";
 import { CampaignSendResult, processDueCampaigns } from "../../../utils/emailSend";
+import { syncNewMembersToContacts } from "../../../utils/memberSync";
 
 // Email campaign batches can take a while; Hobby allows up to 60s.
 export const config = { maxDuration: 60 };
@@ -17,6 +18,7 @@ interface CronResponse {
   videoResults: { uploadId: string; success: boolean; youtubeError?: string; tiktokError?: string }[];
   uploadsDeleted: number;
   campaignResults: CampaignSendResult[];
+  membersAddedToContacts: string[];
 }
 
 // Vercel Cron sends `Authorization: Bearer $CRON_SECRET` automatically
@@ -103,6 +105,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : `[cron/publish-scheduled] No videos ready (${videoResults.length} checked)`
   );
 
+  // New ATLAS members → Contacts + the "ATLAS Network" list (utils/memberSync.ts).
+  let membersAddedToContacts: string[] = [];
+  try {
+    membersAddedToContacts = (await syncNewMembersToContacts()).added;
+    if (membersAddedToContacts.length > 0) {
+      console.log(`[cron/publish-scheduled] Added ${membersAddedToContacts.length} new member(s) to Contacts`);
+    }
+  } catch (syncError) {
+    console.error("[cron/publish-scheduled] member sync failed:", syncError);
+  }
+
   // Email campaigns: send any that are due, and keep going on any still
   // mid-send (utils/emailSend.ts). Never blocks the rest of this cron.
   let campaignResults: CampaignSendResult[] = [];
@@ -142,5 +155,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     videoResults,
     uploadsDeleted: uploadsDeletedCount,
     campaignResults,
+    membersAddedToContacts,
   });
 }

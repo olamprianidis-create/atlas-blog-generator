@@ -127,3 +127,28 @@ export async function listMembersForEmail(): Promise<MemberEmailRow[]> {
   );
   return rows.map((row) => ({ firstName: row.firstName ?? "", lastName: row.lastName ?? "", email: row.email }));
 }
+
+export interface MemberContactRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+}
+
+// Members for the Contacts sync (utils/memberSync.ts), test accounts excluded.
+export async function listMembersForContactSync(): Promise<MemberContactRow[]> {
+  const { rows } = await getPool().query(
+    `SELECT id, "firstName", "lastName", email, phone
+     FROM "User"
+     WHERE "isTestAccount" = false AND email IS NOT NULL
+     ORDER BY "createdAt" ASC`
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    firstName: (row.firstName ?? "").trim(),
+    lastName: (row.lastName ?? "").trim(),
+    email: (row.email as string).trim().toLowerCase(),
+    phone: row.phone?.trim() || null,
+  }));
+}

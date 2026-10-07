@@ -14,6 +14,7 @@ import { resolveAudience } from "./emailAudience";
 import { renderCampaignEmail } from "./emailTemplate";
 import { getSenderSettings } from "./emailSettings";
 import { SITE_URL } from "./site";
+import { syncNewMembersToContacts } from "./memberSync";
 import {
   CAMPAIGN_COLUMNS,
   DEFAULT_BODY_STYLE,
@@ -119,6 +120,13 @@ export async function sendTestEmail(campaignId: string, to: string): Promise<voi
 // Returns false if someone else already claimed it (or it was unscheduled).
 async function claimCampaign(campaign: EmailCampaign): Promise<boolean> {
   const supabase = getServiceClient();
+  // Pick up anyone who signed up since the last cron tick; best-effort, a
+  // Website DB hiccup must not block the send.
+  try {
+    await syncNewMembersToContacts();
+  } catch (syncError) {
+    console.error("[emailSend] member sync before send failed:", syncError);
+  }
   // Resolved before claiming, so a lookup failure leaves it "scheduled"
   // for the next tick rather than stuck in "sending".
   const { recipients } = await resolveAudience(campaign);
