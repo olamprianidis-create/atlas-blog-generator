@@ -13,6 +13,7 @@ import { getServiceClient } from "./supabase";
 import { resolveAudience } from "./emailAudience";
 import { renderCampaignEmail } from "./emailTemplate";
 import { getSenderSettings } from "./emailSettings";
+import { SITE_URL } from "./site";
 import {
   CAMPAIGN_COLUMNS,
   DEFAULT_BODY_STYLE,
@@ -38,9 +39,12 @@ function appUrl(): string {
 }
 
 // The email_sends row id is the unsubscribe token: unguessable, and it
-// identifies exactly which address to opt out.
+// identifies exactly which address to opt out. The link lands on the
+// public ATLAS Website (its /unsubscribe page forwards the click to
+// POST /api/email/unsubscribe here); this app's own /unsubscribe page is
+// kept only for links in emails sent before 2026-10-07.
 export function unsubscribeUrl(sendId: string | null): string {
-  return sendId ? `${appUrl()}/unsubscribe?id=${sendId}` : `${appUrl()}/unsubscribe?test=1`;
+  return sendId ? `${SITE_URL}/unsubscribe?id=${sendId}` : `${SITE_URL}/unsubscribe?test=1`;
 }
 
 // Plain-text alternative (better deliverability than HTML-only).
