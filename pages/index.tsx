@@ -17,6 +17,7 @@ import type { BlogOutline } from "../utils/outline";
 import type { KeywordResearchResult } from "../utils/keywordResearch";
 import { runQualityChecklist, type QualityCheckResult } from "../utils/qualityChecklist";
 import { countWords, calculateReadingTime } from "../utils/markdown";
+import { markdownToHtml } from "../utils/renderMarkdown";
 import { serializeOutline, parseOutlineText } from "../utils/outlineSerialize";
 import { DEFAULT_TIMEZONE, buildPublishDate, formatPublishPreview, parsePublishDate } from "../utils/timezones";
 import type { RelatedArticleItem } from "../utils/relatedArticles";
@@ -287,6 +288,12 @@ export default function Home() {
   function handleContinueWithoutResearch() {
     setResearchError(null);
     void handleProceedToStep3();
+  }
+
+  function handleRemoveKeyword(text: string) {
+    const remaining = keywords.filter((k) => k.text !== text);
+    setKeywords(remaining);
+    setKeywordsDraft(remaining.map((k) => k.text).join(", "));
   }
 
   function handleToggleEditKeywords() {
@@ -671,6 +678,31 @@ export default function Home() {
     void fetchArticle(outline, instructions);
   }
 
+  // Manual edits on Step 4: markdown stays the source of truth; html, counts
+  // and the checklist are recomputed the same way generate-article does.
+  function handleArticleMarkdownChange(markdown: string) {
+    setArticleData((current) => {
+      if (!current) return current;
+      const articleKeywords = keywords.map((k) => k.text);
+      const wordCount = countWords(markdown);
+      const h1 = markdown.match(/^#[ \t]+(.+)$/m)?.[1].trim();
+      return {
+        ...current,
+        title: h1 || current.title,
+        markdown,
+        html: markdownToHtml(markdown),
+        wordCount,
+        readingTimeMinutes: calculateReadingTime(wordCount),
+        checklist: runQualityChecklist({
+          markdown,
+          metaDescription: current.metaDescription,
+          mainKeyword: articleKeywords[0] ?? "",
+          longTailKeywords: articleKeywords.slice(1),
+        }),
+      };
+    });
+  }
+
   function handleRetryArticle() {
     if (!outline) return;
     void fetchArticle(outline);
@@ -834,6 +866,7 @@ export default function Home() {
           onKeywordsDraftChange={setKeywordsDraft}
           onSaveKeywords={handleSaveKeywords}
           onAddDiscoveredKeyword={handleAddDiscoveredKeyword}
+          onRemoveKeyword={handleRemoveKeyword}
           onBack={() => setCurrentStep(1)}
           onNext={handleProceedToStep3}
         />
@@ -864,6 +897,7 @@ export default function Home() {
           error={articleError}
           onApproveAndSchedule={handleApproveAndSchedule}
           onRequestEdits={handleRequestEdits}
+          onMarkdownChange={handleArticleMarkdownChange}
           onRetry={handleRetryArticle}
           onBack={handleBackToStep3}
         />

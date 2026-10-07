@@ -5,6 +5,7 @@ import Spinner from "../Spinner";
 
 export interface ArticleData {
   title: string;
+  markdown: string;
   html: string;
   metaDescription: string;
   wordCount: number;
@@ -18,6 +19,7 @@ interface StepFourArticleProps {
   error: string | null;
   onApproveAndSchedule: () => void;
   onRequestEdits: (instructions: string) => void;
+  onMarkdownChange: (markdown: string) => void;
   onRetry: () => void;
   onBack: () => void;
 }
@@ -37,11 +39,13 @@ export default function StepFourArticle({
   error,
   onApproveAndSchedule,
   onRequestEdits,
+  onMarkdownChange,
   onRetry,
   onBack,
 }: StepFourArticleProps) {
   const [isRequestingEdits, setIsRequestingEdits] = useState(false);
   const [editInstructions, setEditInstructions] = useState("");
+  const [isEditingText, setIsEditingText] = useState(false);
 
   function handleSubmitEdits() {
     const trimmed = editInstructions.trim();
@@ -135,19 +139,53 @@ export default function StepFourArticle({
       </Section>
 
       <Section title="Full Article">
-        <div
-          className="prose prose-sm max-w-none max-h-[36rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 prose-headings:text-slate-900 prose-a:text-blue-600"
-          dangerouslySetInnerHTML={{
-            __html: typeof window !== "undefined" ? DOMPurify.sanitize(data.html) : data.html,
-          }}
-        />
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-slate-400">
+            {isEditingText
+              ? "Leave a blank line between paragraphs. # Title · ## Heading · **bold** · *italic* · - bullet · [text](link)"
+              : "Click Edit to change any words, lines or paragraphs."}
+          </p>
+          <div className="flex shrink-0 rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium">
+            {[
+              { label: "Preview", editing: false },
+              { label: "Edit", editing: true },
+            ].map((tab) => (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setIsEditingText(tab.editing)}
+                className={`rounded-md px-3 py-1 ${
+                  isEditingText === tab.editing ? "bg-slate-900 text-white" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {isEditingText ? (
+          <textarea
+            value={data.markdown}
+            onChange={(event) => onMarkdownChange(event.target.value)}
+            spellCheck
+            aria-label="Article text"
+            className="block h-[36rem] w-full resize-y rounded-lg border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        ) : (
+          <div
+            className="prose prose-sm max-w-none max-h-[36rem] overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 prose-headings:text-slate-900 prose-a:text-blue-600"
+            dangerouslySetInnerHTML={{
+              __html: typeof window !== "undefined" ? DOMPurify.sanitize(data.html) : data.html,
+            }}
+          />
+        )}
       </Section>
 
       {isRequestingEdits && (
         <Section title="Request Edits">
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <label htmlFor="edit-instructions" className="mb-2 block text-xs text-slate-500">
-              Describe the changes you'd like, then regenerate.
+              Describe the changes you'd like, then regenerate. This rewrites the article, so any changes you typed yourself are replaced.
             </label>
             <textarea
               id="edit-instructions"

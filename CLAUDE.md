@@ -235,6 +235,10 @@ The category list is a single source of truth in `utils/types.ts` — the dropdo
 
 Step 1 has an optional **Title** field (added 2026-10-07, like Preliminary Keywords). When set, it's sent as `title` to both `/api/generate-outline` (the outline is shaped to deliver on it) and `/api/generate-article` (the prompt demands it verbatim, and `withExactTitle()` in `utils/article.ts` then forces it as both the returned title and the markdown H1 regardless of what the model wrote). Stored as `customTitle` in the draft state; included in the outline/article regeneration signatures so changing it regenerates. Blank = Claude writes the title, as before.
 
+
+## Manual article edits (Step 4) and keyword removal (Step 2)
+
+Step 4's Full Article panel has Preview / Edit tabs (2026-10-07). Edit is a plain textarea over the article **markdown** (still the source of truth); every keystroke goes through `handleArticleMarkdownChange()` in `pages/index.tsx`, which recomputes `html` (`markdownToHtml`), word count, reading time, the 35-point checklist, and the title (from the `# ` H1 line), so what gets scheduled is exactly what was typed. "Request Edits" regenerates from the outline and replaces manual edits (the box says so). Step 2's selected-keyword chips each have a "−" to remove that keyword (`handleRemoveKeyword()`, which also updates the Refine Keywords text so it doesn't come back).
 ---
 
 ## Workflow Notes

@@ -32,6 +32,7 @@ interface StepTwoImageKeywordsProps {
   onKeywordsDraftChange: (value: string) => void;
   onSaveKeywords: () => void;
   onAddDiscoveredKeyword: (text: string) => void;
+  onRemoveKeyword: (text: string) => void;
 
   onBack: () => void;
   onNext: () => void;
@@ -87,6 +88,7 @@ export default function StepTwoImageKeywords({
   onContinueWithoutResearch,
   keywords,
   isEditingKeywords,
+  onRemoveKeyword,
   keywordsDraft,
   onToggleEditKeywords,
   onKeywordsDraftChange,
@@ -327,12 +329,21 @@ export default function StepTwoImageKeywords({
                 {keywords.map((keyword) => (
                   <span
                     key={keyword.text}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${pillClasses(
+                    className={`inline-flex items-center gap-1 rounded-full py-1 pl-3 pr-1 text-xs font-medium ${pillClasses(
                       keyword.source ?? (keyword.isSuggested ? "recommended" : "custom")
                     )}`}
                   >
                     {keyword.text}
-                    {keyword.isSuggested && <span className="ml-1">✨</span>}
+                    {keyword.isSuggested && <span>✨</span>}
+                    <button
+                      type="button"
+                      onClick={() => onRemoveKeyword(keyword.text)}
+                      title={`Remove "${keyword.text}"`}
+                      aria-label={`Remove ${keyword.text}`}
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-sm leading-none opacity-60 hover:bg-black/10 hover:opacity-100"
+                    >
+                      −
+                    </button>
                   </span>
                 ))}
                 {keywords.length === 0 && (
