@@ -257,9 +257,10 @@ export default function SidebarNav() {
         title={collapsed ? "Stat.ATLAS" : undefined}
         className={`mb-6 flex items-center gap-2 px-3 ${collapsed ? "justify-center px-0" : ""}`}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-400 text-sm font-black text-slate-900">
-          S
-        </span>
+        {/* ATLAS doorway mark, inverted (white) for the dark sidebar —
+            public/logo-white.png; the tab icon uses the original black one. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-white.png" alt="" width={32} height={32} className="h-8 w-8 shrink-0" />
         {!collapsed && <span className="text-base font-semibold text-white">Stat.ATLAS</span>}
       </Link>
 
