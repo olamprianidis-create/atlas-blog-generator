@@ -19,7 +19,9 @@ export interface ArticleGenerationInput {
 }
 
 // Used only for MOCK_MODE test output when no real published articles are
-// available yet to recommend for internal linking.
+// available yet to recommend for internal linking. NEVER passed to the real
+// model prompt — these articles don't exist, and padding the prompt with
+// them is what produced dead "Related Reading" links on the live site.
 const MOCK_FALLBACK_RELATED_ARTICLES: RelatedArticleItem[] = [
   {
     id: "mock-1",
@@ -292,9 +294,13 @@ export async function generateArticle(input: ArticleGenerationInput): Promise<Ar
   const researchSummary = input.research
     .map((r) => `Query: ${r.query}\n${r.findings.map((f) => `- ${f}`).join("\n")}`)
     .join("\n\n");
-  const relatedArticlesList = withMockFallback(input.relatedArticles)
-    .map((a) => `- ${a.title} — ${a.url} (${a.category})`)
-    .join("\n");
+  const realRelated = input.relatedArticles.slice(0, 3);
+  const relatedArticlesList = realRelated.length
+    ? realRelated.map((a) => `- ${a.title} — ${a.url} (${a.category})`).join("\n")
+    : "(none yet)";
+  const internalLinkRule = realRelated.length
+    ? `- Weave in up to ${Math.min(2, realRelated.length)} of the related atlasnetwork.club articles above as natural in-body links, using their exact URLs, plus list ${realRelated.length === 1 ? "it" : `all ${realRelated.length}`} again under a closing "## Related Reading" section as a markdown list. NEVER link to any atlasnetwork.club article that is not in that list — do not invent titles or URLs.`
+    : `- There are no related atlasnetwork.club articles yet: do not include any internal atlasnetwork.club article links, and leave out the "## Related Reading" section entirely. Do not invent titles or URLs.`;
 
   const editInstructionsBlock = input.editInstructions
     ? `\n\nThe user requested these edits to a previous draft — apply them:\n${input.editInstructions}`
@@ -330,8 +336,8 @@ Hard requirements — the article will be rejected if any of these are missed:
 - Aim for 1,800-2,200 words (never under 1,600) — the floor is 1,500 and running short fails review, so write generously rather than tightly.
 - The closing CTA section's heading must be exactly "## What to Do Next" (this exact text — a checklist matches on it).
 - That section must literally mention "@atlasnetwork.club" and the word "Instagram".
-- Include roughly 8-10 external citation links total (spread across the body, e.g. "According to [Forbes](https://www.forbes.com/)..."), pointing to real, well-known, relevant domains for the category (e.g. Forbes, Harvard Business Review, Mayo Clinic, CDC, APA, ESPN, Pew Research, McKinsey). These external links must outnumber internal links by roughly 3:2 or more — internal links are capped at 2-3 in the body plus exactly 3 in Related Reading, so err toward more external citations, not fewer.
-- Weave in 2-3 of the related atlasnetwork.club articles above as natural in-body links, using their exact URLs, plus list all 3 again under a closing "## Related Reading" section as a markdown list.
+- Include roughly 8-10 external citation links total (spread across the body, e.g. "According to [Forbes](https://www.forbes.com/)..."), pointing to real, well-known, relevant domains for the category (e.g. Forbes, Harvard Business Review, Mayo Clinic, CDC, APA, ESPN, Pew Research, McKinsey). These external links must outnumber internal links by roughly 3:2 or more — internal links are capped at the related articles listed above, so err toward more external citations, not fewer.
+${internalLinkRule}
 
 Formatting & pacing — ATLAS Network's brand voice is fast to read and easy to scan. The article will be rejected if any of these are missed:
 - Paragraphs: maximum 3 sentences each, target 2. Break up longer thoughts into multiple short paragraphs instead of one dense block. Use generous whitespace — never write a paragraph that reads as a wall of text.

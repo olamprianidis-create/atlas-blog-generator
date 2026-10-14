@@ -114,11 +114,19 @@ export function runQualityChecklist({
       label: "External links are ~60%+ of total links",
       passed: links.length > 0 && externalLinks.length / links.length >= 0.55,
     },
-    { id: 18, label: "At least 2 internal links appear in the body", passed: bodyInternalLinks.length >= 2 },
+    // Internal links are limited to real published articles (dead ones are
+    // stripped after generation), so fewer than 2–3 is fine when a topic
+    // doesn't have that many related posts yet.
+    {
+      id: 18,
+      label: "Internal links appear in the body (when related articles exist)",
+      passed: bodyInternalLinks.length >= 1 || relatedReadingIndex === -1,
+    },
     {
       id: 19,
-      label: "Exactly 3 internal links in the closing Related Reading section",
-      passed: closingInternalLinks.length === 3,
+      label: "Related Reading lists 1-3 real articles (or is left out when none exist)",
+      passed:
+        relatedReadingIndex === -1 || (closingInternalLinks.length >= 1 && closingInternalLinks.length <= 3),
     },
     {
       id: 20,

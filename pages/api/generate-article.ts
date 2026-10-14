@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateArticle } from "../../utils/article";
 import { markdownToHtml } from "../../utils/renderMarkdown";
+import { listPublishedArticleSlugs, stripDeadInternalLinks } from "../../utils/internalLinks";
 import { buildFrontmatterYaml, ArticleFrontmatter } from "../../utils/frontmatter";
 import { runQualityChecklist, QualityCheckResult } from "../../utils/qualityChecklist";
 import { countWords, calculateReadingTime } from "../../utils/markdown";
@@ -104,7 +105,7 @@ export default async function handler(
     typeof editInstructions === "string" && editInstructions.trim() ? editInstructions.trim() : undefined;
 
   try {
-    const { title, markdown, metaDescription } = await generateArticle({
+    const generated = await generateArticle({
       categoryLabel,
       topic: topicText,
       outline,
@@ -114,6 +115,20 @@ export default async function handler(
       editInstructions: editInstructionsText,
       title: customTitle,
     });
+    const { title, metaDescription } = generated;
+
+    // Remove any atlasnetwork.club article link that isn't a real published
+    // article (see utils/internalLinks.ts). If the lookup itself fails, fall
+    // back to the related articles this request was given.
+    let publishedSlugs: Set<string>;
+    try {
+      publishedSlugs = await listPublishedArticleSlugs();
+    } catch (error) {
+      console.error("generate-article: couldn't load published articles for link check:", error);
+      publishedSlugs = new Set(relatedArticlesList.map((a) => a.url.split("/").pop() ?? ""));
+    }
+    const { markdown, removed } = stripDeadInternalLinks(generated.markdown, publishedSlugs);
+    if (removed.length) console.warn("generate-article: removed dead internal links:", removed);
 
     const wordCount = countWords(markdown);
     const readingTimeMinutes = calculateReadingTime(wordCount);

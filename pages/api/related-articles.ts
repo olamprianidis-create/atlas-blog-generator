@@ -45,6 +45,23 @@ export default async function handler(
     if (error) throw error;
 
     const rows = (data ?? []) as PublishedRow[];
+
+    // A category with fewer than RECOMMENDED_LIMIT published articles is
+    // topped up with the newest real articles from other categories, so
+    // the generator always gets real links to work with instead of too few
+    // (it used to pad the gap with invented articles — see
+    // utils/internalLinks.ts).
+    if (rows.length < RECOMMENDED_LIMIT) {
+      const { data: others, error: othersError } = await supabase
+        .from("scheduled_articles")
+        .select("id, title, category, publish_date, meta_description")
+        .eq("status", "published")
+        .neq("category", category)
+        .order("publish_date", { ascending: false })
+        .limit(RECENT_LIMIT - rows.length);
+      if (othersError) throw othersError;
+      rows.push(...((others ?? []) as PublishedRow[]));
+    }
     const recent: RelatedArticleItem[] = rows.map((row) => ({
       id: row.id,
       title: row.title,
