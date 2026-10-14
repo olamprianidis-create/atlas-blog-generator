@@ -392,3 +392,6 @@ This rule exists because of a real incident (2026-09-02): a "cleanup orphaned Bl
 - PRs: Link to checklist item if applicable
 
 **Don't commit:** .env.local, node_modules, .supabase/
+
+## Newsletter sign-ups from the Website (added 2026-10-14)
+`POST /api/email/newsletter-signup` (`utils/newsletterSignup.ts`) receives the ATLAS Website landing page's "Join Our Newsletter" form, forwarded server-side from the Website's `/api/newsletter`. It takes a first name and email (both required) and a phone (optional), and adds the person to the **"Newsletter"** contact list, creating the list on first use. Same rules as `memberSync.ts`: an existing contact (matched on lowercased email) is added to the list but its fields are never overwritten. Because the form is unauthenticated, it also never re-subscribes an address that opted out (`contacts.subscribed`/`email_unsubscribes` are left alone). New contacts get `notes = "Newsletter sign-up (website)"`.
