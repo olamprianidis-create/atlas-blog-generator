@@ -11,6 +11,7 @@ import { BLOG_POST_COLOR_CLASS, PLATFORMS } from "../utils/types";
 
 const GOOGLE_EVENT_COLOR_CLASS = "bg-indigo-500";
 const EMAIL_CAMPAIGN_COLOR_CLASS = "bg-violet-600";
+const LINKEDIN_COLOR_CLASS = "bg-[#0A66C2]";
 
 // Email campaigns from /email/campaigns — scheduled ones on their send day,
 // sent ones on the day they went out. Drafts and canceled ones are left off.
@@ -63,6 +64,9 @@ interface ScheduledArticleRow {
   publish_date: string | null;
   image_url: string | null;
   status: "scheduled" | "published";
+  // Set once the LinkedIn auto-share went out (published articles only).
+  linkedin_posted_at?: string | null;
+  linkedin_post_urn?: string | null;
 }
 
 interface VideoUploadRow {
@@ -132,6 +136,13 @@ function pad(n: number) {
 
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+// The local calendar day of a timestamp (a 5 PM PT post is still "today",
+// not tomorrow's UTC date).
+function localDateStr(iso: string) {
+  const d = new Date(iso);
+  return toDateStr(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
 // "Wed, Oct 22" for confirm messages.
@@ -590,6 +601,8 @@ export default function CalendarPage() {
     // already live on YouTube/TikTok) — lockedReason says why on hover.
     dragPayload?: DragPayload;
     lockedReason?: string;
+    // Clicking the chip opens this (a LinkedIn post) instead of the day.
+    href?: string;
   }
 
   function getChipsForDate(dateStr: string): Chip[] {
@@ -622,6 +635,22 @@ export default function CalendarPage() {
             : video.status === "published"
               ? `Already live on ${platformLabel(video.platform)}, so it can't be moved.`
               : "This upload didn't go through, so moving it wouldn't reschedule anything. Retry it from Uploads.",
+      });
+    }
+
+    // LinkedIn auto-shares, on the day each one actually went out (local
+    // date). Clicking one opens the post on LinkedIn.
+    for (const article of scheduledArticles) {
+      if (!article.linkedin_posted_at || localDateStr(article.linkedin_posted_at) !== dateStr) continue;
+      chips.push({
+        key: `linkedin-${article.id}`,
+        label: `LinkedIn: ${article.title}`,
+        colorClass: LINKEDIN_COLOR_CLASS,
+        checked: true,
+        lockedReason: "Already posted to LinkedIn, so it can't be moved.",
+        href: article.linkedin_post_urn
+          ? `https://www.linkedin.com/feed/update/${article.linkedin_post_urn}/`
+          : undefined,
       });
     }
 
@@ -827,7 +856,19 @@ export default function CalendarPage() {
                             <div
                               key={chip.key}
                               draggable={!!chip.dragPayload}
-                              title={chip.lockedReason ?? (chip.dragPayload ? "Drag to another day to move it" : undefined)}
+                              onClick={
+                                chip.href
+                                  ? (event) => {
+                                      event.stopPropagation();
+                                      window.open(chip.href, "_blank", "noopener,noreferrer");
+                                    }
+                                  : undefined
+                              }
+                              title={
+                                chip.href
+                                  ? "Open the LinkedIn post"
+                                  : (chip.lockedReason ?? (chip.dragPayload ? "Drag to another day to move it" : undefined))
+                              }
                               onDragStart={(event) => {
                                 if (!chip.dragPayload) return;
                                 event.stopPropagation();
@@ -836,7 +877,7 @@ export default function CalendarPage() {
                               }}
                               className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
                                 dimmed ? "opacity-60" : ""
-                              } ${chip.dragPayload ? "cursor-grab active:cursor-grabbing" : chip.lockedReason ? "cursor-not-allowed" : ""}`}
+                              } ${chip.href ? "cursor-pointer" : chip.dragPayload ? "cursor-grab active:cursor-grabbing" : chip.lockedReason ? "cursor-not-allowed" : ""}`}
                             >
                               <button
                                 type="button"
@@ -941,6 +982,10 @@ export default function CalendarPage() {
                 {platform.label}
               </span>
             ))}
+            <span className="flex items-center gap-1.5">
+              <span className={`h-3 w-3 rounded ${LINKEDIN_COLOR_CLASS}`} />
+              LinkedIn
+            </span>
             <span className="flex items-center gap-1.5">
               <span className={`h-3 w-3 rounded ${EMAIL_CAMPAIGN_COLOR_CLASS}`} />
               Email campaign

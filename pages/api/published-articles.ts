@@ -10,6 +10,10 @@ interface PublishedArticleItem {
   image_url: string | null;
   linkedin_status: string;
   linkedin_error: string | null;
+  // When the LinkedIn auto-share actually went out, and the post's URN
+  // (used by the Content Calendar's LinkedIn chips).
+  linkedin_posted_at?: string | null;
+  linkedin_post_urn?: string | null;
 }
 
 export default async function handler(
@@ -31,7 +35,9 @@ export default async function handler(
     // page for every article.
     const { data, error } = await supabase
       .from("scheduled_articles")
-      .select("id, title, category, publish_date, meta_description, image_url, linkedin_status, linkedin_error")
+      .select(
+        "id, title, category, publish_date, meta_description, image_url, linkedin_status, linkedin_error, linkedin_posted_at, linkedin_post_urn"
+      )
       .eq("status", "published")
       .order("publish_date", { ascending: false });
 
