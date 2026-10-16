@@ -237,3 +237,45 @@ export async function deleteGoogleCalendarEvent(googleEventId: string): Promise<
     if (status !== 404 && status !== 410) throw error;
   }
 }
+
+function shiftDateStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Drag-and-drop from the Content Calendar: moves any event on the selected
+// calendar (not just ones we created) to another day. Start and end shift
+// by the same number of days, so a multi-day event keeps its length and a
+// timed event keeps its time of day (the date part of its local dateTime
+// is swapped; the time, offset and time zone are left as they were).
+export async function moveGoogleCalendarEvent(googleEventId: string, newDateStr: string): Promise<void> {
+  const { selectedCalendarId } = await getGoogleCalendarConnection();
+  if (!selectedCalendarId) throw new Error("No Google calendar selected yet.");
+
+  const auth = await getAuthorizedClient();
+  const calendar = google.calendar({ version: "v3", auth });
+
+  const { data: event } = await calendar.events.get({ calendarId: selectedCalendarId, eventId: googleEventId });
+  const oldDateStr = (event.start?.date || event.start?.dateTime || "").slice(0, 10);
+  if (!oldDateStr) throw new Error("This Google event has no start date.");
+  const days = Math.round(
+    (new Date(`${newDateStr}T00:00:00Z`).getTime() - new Date(`${oldDateStr}T00:00:00Z`).getTime()) / 86_400_000
+  );
+  if (days === 0) return;
+
+  const shift = (when: typeof event.start) => {
+    if (!when) return when;
+    if (when.date) return { ...when, date: shiftDateStr(when.date, days) };
+    if (when.dateTime) {
+      return { ...when, dateTime: shiftDateStr(when.dateTime.slice(0, 10), days) + when.dateTime.slice(10) };
+    }
+    return when;
+  };
+
+  await calendar.events.patch({
+    calendarId: selectedCalendarId,
+    eventId: googleEventId,
+    requestBody: { start: shift(event.start), end: shift(event.end) },
+  });
+}

@@ -134,6 +134,11 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
+// "Wed, Oct 22" for confirm messages.
+function formatDay(dateStr: string) {
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
 function todayDateStr() {
   const now = new Date();
   return toDateStr(now.getFullYear(), now.getMonth() + 1, now.getDate());
@@ -201,6 +206,8 @@ export default function CalendarPage() {
   const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEventRow[]>([]);
   const [googleBanner, setGoogleBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  // Shown above the grid when a drag-and-drop move fails (the item snaps back).
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const grid = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const monthLabel = useMemo(
@@ -418,9 +425,10 @@ export default function CalendarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventDate: newDateStr }),
       });
-      if (!res.ok) throw new Error("Failed to reschedule note");
+      if (!res.ok) throw new Error("Couldn't move the note.");
     } catch (err) {
       console.error(err);
+      setMoveError(err instanceof Error ? err.message : "Couldn't move the note.");
       setEvents((current) => current.map((e) => (e.id === eventId ? previous : e)));
     }
   }
@@ -430,6 +438,15 @@ export default function CalendarPage() {
     if (!previous?.publish_date) return;
     const newIso = combineDateKeepingTime(previous.publish_date, newDateStr);
     if (previous.publish_date.slice(0, 10) === newDateStr) return;
+    if (previous.status === "published") {
+      const ok = window.confirm(
+        `"${previous.title}" is already live. Moving it changes the publish date shown on the website ` +
+          `(and where it sits in your article lists). Move it to ${formatDay(newDateStr)}?`
+      );
+      if (!ok) return;
+    } else if (!confirmPastMove(newIso, "This article would publish within a minute.")) {
+      return;
+    }
     setScheduledArticles((current) => current.map((a) => (a.id === articleId ? { ...a, publish_date: newIso } : a)));
     try {
       const res = await fetch(`/api/scheduled-articles/${articleId}`, {
@@ -437,9 +454,10 @@ export default function CalendarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publishDate: newIso }),
       });
-      if (!res.ok) throw new Error("Failed to reschedule article");
+      if (!res.ok) throw new Error("Couldn't move the article.");
     } catch (err) {
       console.error(err);
+      setMoveError(err instanceof Error ? err.message : "Couldn't move the article.");
       setScheduledArticles((current) => current.map((a) => (a.id === articleId ? previous : a)));
     }
   }
@@ -450,6 +468,7 @@ export default function CalendarPage() {
     if (!previous || !oldIso) return;
     const newIso = combineDateKeepingTime(oldIso, newDateStr);
     if (oldIso.slice(0, 10) === newDateStr) return;
+    if (!confirmPastMove(newIso, "This video would upload within a minute.")) return;
     setVideoUploads((current) => current.map((u) => (u.id === uploadId ? { ...u, publish_at: newIso } : u)));
     try {
       const res = await fetch(`/api/uploads/${uploadId}`, {
@@ -457,14 +476,65 @@ export default function CalendarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publishAt: newIso }),
       });
-      if (!res.ok) throw new Error("Failed to reschedule video");
+      if (!res.ok) throw new Error("Couldn't move the video.");
     } catch (err) {
       console.error(err);
+      setMoveError(err instanceof Error ? err.message : "Couldn't move the video.");
       setVideoUploads((current) => current.map((u) => (u.id === uploadId ? previous : u)));
     }
   }
 
-  type DragPayload = { kind: "note" | "article" | "video"; id: string };
+  // Moving something onto a past day (or earlier today) means the publish
+  // cron or email sender picks it up right away — ask first.
+  function confirmPastMove(newIso: string, consequence: string): boolean {
+    if (new Date(newIso).getTime() > Date.now()) return true;
+    return window.confirm(`That time has already passed. ${consequence} Move it anyway?`);
+  }
+
+  async function moveEmailToDate(campaignId: string, newDateStr: string) {
+    const previous = emailCampaigns.find((c) => c.id === campaignId);
+    if (!previous || previous.status !== "scheduled" || campaignDateStr(previous) === newDateStr) return;
+    const newIso = combineDateKeepingTime(previous.send_at ?? `${newDateStr}T09:00:00`, newDateStr);
+    if (!confirmPastMove(newIso, "This email would start sending within a minute.")) return;
+    setEmailCampaigns((current) =>
+      current.map((c) => (c.id === campaignId ? { ...c, send_date: newDateStr, send_at: newIso } : c))
+    );
+    try {
+      const res = await fetch(`/api/email/campaigns/${campaignId}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendDate: newDateStr }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn't move the email.");
+      setEmailCampaigns((current) => current.map((c) => (c.id === campaignId ? { ...c, ...data } : c)));
+    } catch (err) {
+      console.error(err);
+      setMoveError(err instanceof Error ? err.message : "Couldn't move the email.");
+      setEmailCampaigns((current) => current.map((c) => (c.id === campaignId ? previous : c)));
+    }
+  }
+
+  async function moveGoogleEventToDate(eventId: string, newDateStr: string) {
+    const previous = googleEvents.find((e) => e.id === eventId);
+    if (!previous || previous.dateStr === newDateStr) return;
+    setGoogleEvents((current) => current.map((e) => (e.id === eventId ? { ...e, dateStr: newDateStr } : e)));
+    try {
+      const res = await fetch("/api/google-calendar/move-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId, dateStr: newDateStr }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn't move the Google Calendar event.");
+    } catch (err) {
+      console.error(err);
+      setMoveError(err instanceof Error ? err.message : "Couldn't move the Google Calendar event.");
+      setGoogleEvents((current) => current.map((e) => (e.id === eventId ? previous : e)));
+    }
+  }
+
+  type DragPayload = { kind: "note" | "article" | "video" | "email" | "gcal"; id: string };
 
   function handleDrop(newDateStr: string, event: React.DragEvent) {
     event.preventDefault();
@@ -479,6 +549,8 @@ export default function CalendarPage() {
     if (payload.kind === "note") void moveNoteToDate(payload.id, newDateStr);
     else if (payload.kind === "article") void moveArticleToDate(payload.id, newDateStr);
     else if (payload.kind === "video") void moveVideoToDate(payload.id, newDateStr);
+    else if (payload.kind === "email") void moveEmailToDate(payload.id, newDateStr);
+    else if (payload.kind === "gcal") void moveGoogleEventToDate(payload.id, newDateStr);
   }
 
   function findArticlesForDate(dateStr: string): ScheduledArticleForDay[] {
@@ -514,10 +586,10 @@ export default function CalendarPage() {
     // since it should only ever reflect what actually happened. Present =
     // manually toggleable (platform events with no automated pipeline).
     onToggle?: () => void;
-    // Undefined = not draggable (already published, or read-only Google
-    // Calendar entries) — only still-scheduled items can be dragged to a
-    // different day.
+    // Undefined = can't be moved (an email that already went out, a video
+    // already live on YouTube/TikTok) — lockedReason says why on hover.
     dragPayload?: DragPayload;
+    lockedReason?: string;
   }
 
   function getChipsForDate(dateStr: string): Chip[] {
@@ -529,7 +601,8 @@ export default function CalendarPage() {
         label: article.title,
         colorClass: BLOG_POST_COLOR_CLASS,
         checked: article.status === "published",
-        dragPayload: article.status === "scheduled" ? { kind: "article", id: article.id } : undefined,
+        // Published ones move too (after a confirm — it changes the live date).
+        dragPayload: { kind: "article", id: article.id },
       });
     }
 
@@ -543,6 +616,12 @@ export default function CalendarPage() {
         colorClass: platformColorClass(video.platform),
         checked: video.status === "published",
         dragPayload: video.status === "pending" ? { kind: "video", id: video.uploadId } : undefined,
+        lockedReason:
+          video.status === "pending"
+            ? undefined
+            : video.status === "published"
+              ? `Already live on ${platformLabel(video.platform)}, so it can't be moved.`
+              : "This upload didn't go through, so moving it wouldn't reschedule anything. Retry it from Uploads.",
       });
     }
 
@@ -553,17 +632,20 @@ export default function CalendarPage() {
         label: `Email: ${campaign.subject || "Untitled campaign"}`,
         colorClass: EMAIL_CAMPAIGN_COLOR_CLASS,
         checked: campaign.status === "sent",
+        dragPayload: campaign.status === "scheduled" ? { kind: "email", id: campaign.id } : undefined,
+        lockedReason: campaign.status === "scheduled" ? undefined : "This email already went out, so it can't be moved.",
       });
     }
 
-    // Read-only — these live in Google Calendar, not our own DB, so
-    // there's nothing here to check off or edit from this grid.
+    // These live in Google Calendar — nothing to check off here, but they
+    // can be dragged, which moves the real event in Google Calendar.
     for (const event of googleEventsForDate(dateStr)) {
       chips.push({
         key: `gcal-${event.id}`,
         label: event.summary,
         colorClass: GOOGLE_EVENT_COLOR_CLASS,
         checked: false,
+        dragPayload: { kind: "gcal", id: event.id },
       });
     }
 
@@ -632,6 +714,15 @@ export default function CalendarPage() {
               }`}
             >
               {googleBanner.text}
+            </div>
+          )}
+
+          {moveError && (
+            <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <span>{moveError} It was put back where it was.</span>
+              <button type="button" onClick={() => setMoveError(null)} className="font-medium hover:underline">
+                Dismiss
+              </button>
             </div>
           )}
 
@@ -736,6 +827,7 @@ export default function CalendarPage() {
                             <div
                               key={chip.key}
                               draggable={!!chip.dragPayload}
+                              title={chip.lockedReason ?? (chip.dragPayload ? "Drag to another day to move it" : undefined)}
                               onDragStart={(event) => {
                                 if (!chip.dragPayload) return;
                                 event.stopPropagation();
@@ -744,7 +836,7 @@ export default function CalendarPage() {
                               }}
                               className={`flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white ${chip.colorClass} ${
                                 dimmed ? "opacity-60" : ""
-                              } ${chip.dragPayload ? "cursor-grab active:cursor-grabbing" : ""}`}
+                              } ${chip.dragPayload ? "cursor-grab active:cursor-grabbing" : chip.lockedReason ? "cursor-not-allowed" : ""}`}
                             >
                               <button
                                 type="button"
