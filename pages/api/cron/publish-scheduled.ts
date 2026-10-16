@@ -4,7 +4,7 @@ import { publishArticleById } from "../../../utils/publish";
 import { publishVideoUploadById } from "../../../utils/publishVideo";
 import { cleanupOldUploads } from "../../../utils/cleanupOldUploads";
 import { CampaignSendResult, processDueCampaigns } from "../../../utils/emailSend";
-import { syncNewMembersToContacts } from "../../../utils/memberSync";
+import { syncMemberContactChanges, syncNewMembersToContacts } from "../../../utils/memberSync";
 
 // Email campaign batches can take a while; Hobby allows up to 60s.
 export const config = { maxDuration: 60 };
@@ -120,6 +120,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
   } catch (syncError) {
     console.error("[cron/publish-scheduled] member sync failed:", syncError);
+  }
+
+  // Members who changed their email/phone on the Website: update their
+  // contact (normally already done instantly via /api/members/sync-contact;
+  // this catches anything that call missed).
+  if (isTenMinuteMark) try {
+    const { updated } = await syncMemberContactChanges();
+    if (updated.length > 0) {
+      console.log(`[cron/publish-scheduled] Updated ${updated.length} member contact(s)`);
+    }
+  } catch (contactSyncError) {
+    console.error("[cron/publish-scheduled] member contact update failed:", contactSyncError);
   }
 
   // Email campaigns: send any that are due, and keep going on any still
