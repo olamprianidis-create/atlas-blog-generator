@@ -13,13 +13,30 @@ checklist that every generated article is scored against.
 
 1. **H1 title**
 2. **Hook** — 1-2 sentence opening, no heading, immediately after the title
-3. **30-second answer** — direct answer to the core question, before the first H2
+3. **30-second answer** — a line with only `**The 30-Second Answer**` (bold, not a heading), then 2-4 short paragraphs directly answering the core question, before the first H2. The ATLAS Website renders the "In This Article" table of contents right after it (before the first H2), so it must never be a `##` heading itself
 4. **Topic breakdown** — 4-6 `##` sections covering the subject in depth
 5. **Example** — a concrete example or mini case study, as its own `##` section
 6. **FAQs** — a `## Frequently Asked Questions` section with exactly 5 `###` questions
 7. **Key takeaways** — a `##` section with a bullet list
 8. **CTA** — a closing `##` section, must mention the `@atlasnetwork.club` Instagram
 9. **Related reading** — a closing `##` section with exactly 3 internal links
+
+## Page layout added by the ATLAS Website (not written into the article)
+
+The Website inserts these around the article automatically at render time, so
+the article itself must not contain them — but its structure must leave room
+for them:
+
+1. **"In This Article" table of contents** — right after the hook + 30-second
+   answer, directly before the first `##` heading.
+2. **"Join Our Newsletter" box** — at the `##` section break closest to 40% of
+   the way down the article (always between two sections, never mid-section).
+   Keep `##` topic sections roughly even (~200–400 words, none over ~500) so a
+   break always falls near 40%.
+3. **"Meet Your Local Realtor" box** — after the article body, above Related
+   Reading, on articles by a realtor author.
+4. **Related Reading row** — replaces the article's own "Related Reading" list
+   with 5 real, relevant articles.
 
 ## Length
 

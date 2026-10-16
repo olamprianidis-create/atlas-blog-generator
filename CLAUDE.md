@@ -406,3 +406,8 @@ Generated articles used to contain **dead internal links**. `withMockFallback()`
 
 ## Logo & browser-tab icon (2026-10-14)
 The ATLAS "doorway" mark (a black square with a white door-and-path cutout) replaced the old amber "S" badge. The sidebar (`components/layout/SidebarNav.tsx`, `bg-slate-950`) uses `public/logo-white.png`, an inverted version (white square, transparent door) so it reads on the dark sidebar. The tab icon uses the original black version: `public/favicon.ico` (16/32/48), `favicon-32.png`, `icon-512.png` and `apple-touch-icon.png`, linked from `pages/_app.tsx`. All were generated from the source PNG (transparent background flattened onto white, cropped to the square).
+
+## Article layout contract with the Website (2026-10-16)
+The ATLAS Website adds page elements around every article at render time (documented in `Blog_Structure_Prompt_UPDATED.md` → "Page layout added by the ATLAS Website"). It places the "In This Article" TOC directly after the hook + 30-second answer (before the first `##`) and the "Join Our Newsletter" box at the `##` break closest to 40% down the page. So generated articles must:
+- Format the 30-second answer as a line with only `**The 30-Second Answer**` (bold, **never** a `##` heading), then 2-4 short paragraphs, before the first `##`. This is in the `generateArticle()` prompt and in MOCK markdown.
+- Keep `##` topic sections roughly even (~200-400 words, none over ~500) so a section break lands near 40%. This is also in the prompt.

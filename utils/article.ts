@@ -187,6 +187,8 @@ function buildMockMarkdown(input: ArticleGenerationInput, mainKeyword: string, l
 ${editNote}
 ${outline.hook}
 
+**The 30-Second Answer**
+
 ${outline.quickAnswer} ${keywordSentence} According to ${nextCitation()}, this approach holds up well across different situations, which is part of why it's worth building into a routine rather than treating it as a one-off fix.
 
 ${sections.join("\n\n")}
@@ -334,6 +336,8 @@ ${editInstructionsBlock}
 
 Hard requirements — the article will be rejected if any of these are missed:
 - Aim for 1,800-2,200 words (never under 1,600) — the floor is 1,500 and running short fails review, so write generously rather than tightly.
+- Right after the hook lines, write the 30-second answer in EXACTLY this shape: a line containing only **The 30-Second Answer** (bold, not a heading), then 2-4 short paragraphs that directly answer the core question. It must come before the first "##" heading and must never itself be a "##" heading — the website places the article's table of contents directly after it, right before the first section.
+- Keep the "##" topic sections roughly even in length (about 200-400 words each, none over ~500). The website drops its newsletter sign-up box at the section break closest to 40% of the way down, so evenly sized sections guarantee a break lands near that point.
 - The closing CTA section's heading must be exactly "## What to Do Next" (this exact text — a checklist matches on it).
 - That section must literally mention "@atlasnetwork.club" and the word "Instagram".
 - Include roughly 8-10 external citation links total (spread across the body, e.g. "According to [Forbes](https://www.forbes.com/)..."), pointing to real, well-known, relevant domains for the category (e.g. Forbes, Harvard Business Review, Mayo Clinic, CDC, APA, ESPN, Pew Research, McKinsey). These external links must outnumber internal links by roughly 3:2 or more — internal links are capped at the related articles listed above, so err toward more external citations, not fewer.
