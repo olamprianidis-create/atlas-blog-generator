@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import BlogTabs from "../components/layout/BlogTabs";
-import type { ArticlesOverview, PeriodValue } from "../utils/articleAnalytics";
+import type { ArticleEngagementSummary, ArticlesOverview, PeriodValue } from "../utils/articleAnalytics";
 import AppLayout from "../components/layout/AppLayout";
 import { CATEGORIES } from "../utils/types";
 import { buildArticleUrl } from "../utils/site";
@@ -50,6 +50,20 @@ function formatPublishDate(iso: string | null) {
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "—";
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+// e.g. "2 sign-ups · 1 realtor click · readers leave at 54%" — the
+// per-article totals from the overview, zero parts left out.
+function engagementLine(summary: ArticleEngagementSummary): string {
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return [
+    summary.newsletterSignups ? plural(summary.newsletterSignups, "sign-up") : null,
+    summary.realtorClicks ? plural(summary.realtorClicks, "realtor click") : null,
+    summary.shares ? plural(summary.shares, "share") : null,
+    summary.averageDropOff !== null ? `readers leave at ${summary.averageDropOff}%` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // One summary tile: the all-time number, then the last 30 days with a
@@ -162,6 +176,30 @@ export default function PublishedPage() {
                 value={overview.ctrPercent}
                 format={(v) => (v === null ? "—" : `${v.toFixed(1)}%`)}
               />
+              <OverviewTile
+                label="Average drop-off point"
+                help="How far down an article readers get before leaving, on average (tracked since Oct 16, 2026)."
+                value={overview.averageDropOff}
+                format={(v) => (v === null ? "—" : `${v}%`)}
+              />
+              <OverviewTile
+                label="Newsletter sign-ups"
+                help="Sign-ups from the newsletter boxes on article pages (tracked since Oct 16, 2026)."
+                value={overview.newsletterSignups}
+                format={(v) => (v === null ? "—" : v.toLocaleString())}
+              />
+              <OverviewTile
+                label="Realtor contact clicks"
+                help="Clicks on My Instagram / Email Me / Our Website in the realtor box, plus Contact Me (tracked since Oct 16, 2026)."
+                value={overview.realtorClicks}
+                format={(v) => (v === null ? "—" : v.toLocaleString())}
+              />
+              <OverviewTile
+                label="Shares"
+                help="Clicks on Share on X / LinkedIn / email next to the summary (tracked since Oct 16, 2026)."
+                value={overview.shares}
+                format={(v) => (v === null ? "—" : v.toLocaleString())}
+              />
             </div>
           )}
 
@@ -197,13 +235,18 @@ export default function PublishedPage() {
                       </a>
                     </span>
                   </div>
-                  <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                     <Link
                       href={`/published/${article.id}/stats`}
                       className="text-xs font-medium text-slate-600 hover:underline"
                     >
                       Statistics
                     </Link>
+                    {overview?.perArticle[article.id] && (
+                      <span className="text-xs text-slate-500">
+                        {engagementLine(overview.perArticle[article.id])}
+                      </span>
+                    )}
                     <span className="text-slate-300">·</span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${LINKEDIN_STATUS_STYLES[article.linkedin_status] ?? "bg-slate-100 text-slate-500"}`}

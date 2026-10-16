@@ -4,8 +4,8 @@ import AuthorPicker from "./AuthorPicker";
 import DocumentUpload, { UploadedDocument } from "./DocumentUpload";
 
 interface StepOneTopicProps {
-  selectedCategory: Category | null;
-  onSelectCategory: (category: Category) => void;
+  selectedCategories: Category[];
+  onToggleCategory: (category: Category) => void;
   prompt: string;
   onPromptChange: (value: string) => void;
   preliminaryKeywords: string;
@@ -20,8 +20,8 @@ interface StepOneTopicProps {
 }
 
 export default function StepOneTopic({
-  selectedCategory,
-  onSelectCategory,
+  selectedCategories,
+  onToggleCategory,
   prompt,
   onPromptChange,
   preliminaryKeywords,
@@ -34,7 +34,7 @@ export default function StepOneTopic({
   onReferenceDocumentsChange,
   onNext,
 }: StepOneTopicProps) {
-  const canContinue = prompt.trim().length > 0 || selectedCategory !== null;
+  const canContinue = prompt.trim().length > 0 || selectedCategories.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -44,8 +44,8 @@ export default function StepOneTopic({
       </p>
 
       <div className="mt-6">
-        <p className="mb-2 text-sm font-medium text-slate-700">Topic</p>
-        <TopicSelector selected={selectedCategory} onSelect={onSelectCategory} />
+        <p className="mb-2 text-sm font-medium text-slate-700">Topics</p>
+        <TopicSelector selected={selectedCategories} onToggle={onToggleCategory} />
       </div>
 
       <div className="mt-6">

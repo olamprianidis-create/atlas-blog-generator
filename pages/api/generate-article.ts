@@ -40,6 +40,7 @@ interface GenerateArticleResponse {
   markdown: string;
   html: string;
   metaDescription: string;
+  summary: string;
   frontmatter: ArticleFrontmatter;
   frontmatterYaml: string;
   wordCount: number;
@@ -115,7 +116,7 @@ export default async function handler(
       editInstructions: editInstructionsText,
       title: customTitle,
     });
-    const { title, metaDescription } = generated;
+    const { title, metaDescription, summary } = generated;
 
     // Remove any atlasnetwork.club article link that isn't a real published
     // article (see utils/internalLinks.ts). If the lookup itself fails, fall
@@ -157,6 +158,7 @@ export default async function handler(
       markdown,
       html,
       metaDescription,
+      summary,
       frontmatter,
       frontmatterYaml: buildFrontmatterYaml(frontmatter),
       wordCount,

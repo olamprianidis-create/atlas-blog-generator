@@ -37,6 +37,7 @@ interface GenerateArticleApiResponse {
   markdown: string;
   html: string;
   metaDescription: string;
+  summary: string;
   wordCount: number;
   readingTimeMinutes: number;
   checklist: QualityCheckResult[];
@@ -47,13 +48,15 @@ interface ArticleRecord {
   markdown: string;
   html: string;
   metaDescription: string;
+  summary: string;
   wordCount: number;
   readingTimeMinutes: number;
   checklist: QualityCheckResult[];
 }
 
 interface DraftState {
-  selectedCategory: Category | null;
+  selectedCategory: Category | null; // the main topic (selectedCategories[0])
+  selectedCategories?: Category[]; // added 2026-10-16 — older drafts only have selectedCategory
   prompt: string;
   preliminaryKeywords: string;
   customTitle?: string; // optional, added 2026-10-07 — older drafts don't have it
@@ -125,7 +128,10 @@ export default function Home() {
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
 
   // Step 1: topic & prompt
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  // Topics in the order picked; the first is the main topic, which is what
+  // research/outline/article generation and `category` use.
+  const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
+  const selectedCategory: Category | null = selectedCategories[0] ?? null;
   const [prompt, setPrompt] = useState("");
   const [preliminaryKeywords, setPreliminaryKeywords] = useState("");
   // Optional exact article title (Step 1) — used verbatim when set.
@@ -183,8 +189,10 @@ export default function Home() {
     setMaxStepReached((current) => (currentStep > current ? currentStep : current));
   }, [currentStep]);
 
-  function handleSelectCategory(category: Category) {
-    setSelectedCategory((current) => (current === category ? null : category));
+  function handleToggleCategory(category: Category) {
+    setSelectedCategories((current) =>
+      current.includes(category) ? current.filter((c) => c !== category) : [...current, category]
+    );
   }
 
   function handleProceedToStep2() {
@@ -378,7 +386,7 @@ export default function Home() {
   }
 
   function handleRestart() {
-    setSelectedCategory(null);
+    setSelectedCategories([]);
     setPrompt("");
     setPreliminaryKeywords("");
     setCustomTitle("");
@@ -425,6 +433,7 @@ export default function Home() {
   function buildDraftState(): DraftState {
     return {
       selectedCategory,
+      selectedCategories,
       prompt,
       preliminaryKeywords,
       customTitle,
@@ -446,7 +455,9 @@ export default function Home() {
   }
 
   function applyDraftState(state: DraftState) {
-    setSelectedCategory(state.selectedCategory);
+    setSelectedCategories(
+      state.selectedCategories ?? (state.selectedCategory ? [state.selectedCategory] : [])
+    );
     setPrompt(state.prompt);
     setPreliminaryKeywords(state.preliminaryKeywords ?? "");
     setCustomTitle(state.customTitle ?? "");
@@ -460,7 +471,8 @@ export default function Home() {
     setKeywords(state.keywords);
     setOutline(state.outline);
     setOutlineText(state.outlineText);
-    setArticleData(state.articleData);
+    // Drafts saved before 2026-10-16 have no summary.
+    setArticleData(state.articleData ? { ...state.articleData, summary: state.articleData.summary ?? "" } : null);
     setPublishDate(state.publishDate);
     setPublishTime(state.publishTime);
     setTimezone(state.timezone);
@@ -567,7 +579,11 @@ export default function Home() {
             longTailKeywords: articleKeywords.slice(1),
           });
 
-          setSelectedCategory(data.category as Category);
+          setSelectedCategories(
+            Array.isArray(data.categories) && data.categories.length
+              ? (data.categories as Category[])
+              : [data.category as Category]
+          );
           setKeywords(articleKeywords.map((text): KeywordItem => ({ text, isSuggested: false })));
           setHeaderImageUrl(data.image_url ?? null);
           setAuthorUserId(data.author_user_id ?? null);
@@ -576,6 +592,7 @@ export default function Home() {
             markdown: data.content_markdown,
             html: data.content_html ?? "",
             metaDescription: data.meta_description,
+            summary: data.summary ?? "",
             wordCount,
             readingTimeMinutes: calculateReadingTime(wordCount),
             checklist,
@@ -630,10 +647,19 @@ export default function Home() {
         throw new Error(data.error ?? `Request failed with status ${response.status}`);
       }
 
-      const { title, markdown, html, metaDescription, wordCount, readingTimeMinutes, checklist } =
+      const { title, markdown, html, metaDescription, summary, wordCount, readingTimeMinutes, checklist } =
         data as GenerateArticleApiResponse;
 
-      setArticleData({ title, markdown, html, metaDescription, wordCount, readingTimeMinutes, checklist });
+      setArticleData({
+        title,
+        markdown,
+        html,
+        metaDescription,
+        summary: summary ?? "",
+        wordCount,
+        readingTimeMinutes,
+        checklist,
+      });
       setLastArticleSignature(
         computeArticleSignature({
           selectedCategory,
@@ -703,6 +729,10 @@ export default function Home() {
     });
   }
 
+  function handleSummaryChange(summary: string) {
+    setArticleData((current) => (current ? { ...current, summary } : current));
+  }
+
   function handleRetryArticle() {
     if (!outline) return;
     void fetchArticle(outline);
@@ -737,8 +767,10 @@ export default function Home() {
           markdown: articleData.markdown,
           html: articleData.html,
           metaDescription: articleData.metaDescription,
+          summary: articleData.summary,
           keywords: keywords.map((k) => k.text),
           category: selectedCategory,
+          categories: selectedCategories,
           publishDateIso,
           originalPrompt: prompt,
           outline,
@@ -826,8 +858,8 @@ export default function Home() {
     if (currentStep === 1) {
       return (
         <StepOneTopic
-          selectedCategory={selectedCategory}
-          onSelectCategory={handleSelectCategory}
+          selectedCategories={selectedCategories}
+          onToggleCategory={handleToggleCategory}
           prompt={prompt}
           onPromptChange={setPrompt}
           preliminaryKeywords={preliminaryKeywords}
@@ -898,6 +930,7 @@ export default function Home() {
           onApproveAndSchedule={handleApproveAndSchedule}
           onRequestEdits={handleRequestEdits}
           onMarkdownChange={handleArticleMarkdownChange}
+          onSummaryChange={handleSummaryChange}
           onRetry={handleRetryArticle}
           onBack={handleBackToStep3}
         />
@@ -910,11 +943,13 @@ export default function Home() {
           article={{
             title: articleData.title,
             metaDescription: articleData.metaDescription,
+            summary: articleData.summary,
             readingTimeMinutes: articleData.readingTimeMinutes,
             checklist: articleData.checklist,
           }}
-          category={selectedCategory}
-          onCategoryChange={setSelectedCategory}
+          categories={selectedCategories}
+          onToggleCategory={handleToggleCategory}
+          onSummaryChange={handleSummaryChange}
           publishDate={publishDate}
           publishTime={publishTime}
           timezone={timezone}

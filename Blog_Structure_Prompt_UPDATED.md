@@ -27,6 +27,9 @@ The Website inserts these around the article automatically at render time, so
 the article itself must not contain them — but its structure must leave room
 for them:
 
+0. **"Summary:" line + "Share this article" box** — under the title. The
+   summary is the separate one-sentence `SUMMARY:` field (not part of the
+   markdown), so don't restate a summary line in the article body.
 1. **"In This Article" table of contents** — right after the hook + 30-second
    answer, directly before the first `##` heading.
 2. **"Join Our Newsletter" box** — at the `##` section break closest to 40% of

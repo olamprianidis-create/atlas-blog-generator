@@ -55,6 +55,9 @@ export interface ArticleGenerationResult {
   title: string;
   markdown: string;
   metaDescription: string;
+  // One short, plain sentence shown as "Summary:" under the title on the
+  // ATLAS Website. Empty if the model left it out (editable on Steps 4/5).
+  summary: string;
 }
 
 const EXTERNAL_CITATIONS = [
@@ -226,7 +229,7 @@ Follow @atlasnetwork.club on Instagram for more practical ${categoryLower} guida
 const MARKDOWN_DELIMITER = "===MARKDOWN===";
 
 function buildMockDelimitedText(value: ArticleGenerationResult): string {
-  return `TITLE: ${value.title}\nMETA_DESCRIPTION: ${value.metaDescription}\n${MARKDOWN_DELIMITER}\n${value.markdown}`;
+  return `TITLE: ${value.title}\nMETA_DESCRIPTION: ${value.metaDescription}\nSUMMARY: ${value.summary}\n${MARKDOWN_DELIMITER}\n${value.markdown}`;
 }
 
 // Parses the TITLE / META_DESCRIPTION / ===MARKDOWN=== plain-text format
@@ -249,6 +252,7 @@ function parseArticleResponse(text: string): ArticleGenerationResult {
 
   const titleMatch = header.match(/TITLE:\s*(.+)/i);
   const metaMatch = header.match(/META_DESCRIPTION:\s*(.+)/i);
+  const summaryMatch = header.match(/SUMMARY:\s*(.+)/i);
 
   if (!titleMatch || !metaMatch) {
     throw new Error(`Article response missing TITLE or META_DESCRIPTION header. Header: ${header.slice(0, 300)}`);
@@ -261,6 +265,7 @@ function parseArticleResponse(text: string): ArticleGenerationResult {
   return {
     title: titleMatch[1].trim(),
     metaDescription: metaMatch[1].trim(),
+    summary: summaryMatch ? summaryMatch[1].trim().replace(/^["']|["']$/g, "") : "",
     markdown,
   };
 }
@@ -290,6 +295,7 @@ export async function generateArticle(input: ArticleGenerationInput): Promise<Ar
     title: input.title || mock.title,
     markdown: mock.markdown,
     metaDescription: buildMockMetaDescription(input.topic, mainKeyword, longTail),
+    summary: `A quick, practical guide to ${input.topic} and what it means for you.`,
   };
 
   const template = loadTemplate();
@@ -356,6 +362,7 @@ Respond in EXACTLY this format — not JSON, this exact plain-text structure, be
 
 TITLE: <the article title, one line, no quotes>
 META_DESCRIPTION: <the meta description, one line, no quotes, aim for exactly 480 characters, must be between 450 and 500 — count carefully, this is checked>
+SUMMARY: <ONE short, plain-English sentence (under 25 words) saying what the article tells the reader — its main takeaway, not a teaser. Shown as "Summary:" under the title. No quotes, no "This article…">
 ===MARKDOWN===
 <the full article markdown starts here, beginning with a single # H1, continuing to the end of your response — no closing delimiter needed>`;
 

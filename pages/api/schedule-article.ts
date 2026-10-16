@@ -11,6 +11,8 @@ interface ScheduleArticleRequestBody {
   metaDescription?: unknown;
   keywords?: unknown;
   category?: unknown;
+  categories?: unknown; // every topic, main one first (migration 0027)
+  summary?: unknown; // one-sentence summary shown under the title (migration 0027)
   publishDateIso?: unknown;
   originalPrompt?: unknown;
   outline?: unknown;
@@ -45,6 +47,8 @@ export default async function handler(
     metaDescription,
     keywords,
     category,
+    categories,
+    summary,
     publishDateIso,
     originalPrompt,
     outline,
@@ -87,6 +91,11 @@ export default async function handler(
       keywords,
       meta_description: metaDescription,
       category,
+      // Main topic first, then any others picked, no duplicates.
+      categories: Array.from(
+        new Set([category, ...(Array.isArray(categories) ? categories.filter(isCategory) : [])])
+      ),
+      summary: typeof summary === "string" && summary.trim() ? summary.trim() : null,
       internal_links: internalLinks,
       external_links: externalLinks,
       publish_date: publishDateIso,

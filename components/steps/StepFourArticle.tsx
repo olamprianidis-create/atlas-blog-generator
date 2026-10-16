@@ -8,6 +8,7 @@ export interface ArticleData {
   markdown: string;
   html: string;
   metaDescription: string;
+  summary: string;
   wordCount: number;
   readingTimeMinutes: number;
   checklist: QualityCheckResult[];
@@ -20,6 +21,7 @@ interface StepFourArticleProps {
   onApproveAndSchedule: () => void;
   onRequestEdits: (instructions: string) => void;
   onMarkdownChange: (markdown: string) => void;
+  onSummaryChange: (summary: string) => void;
   onRetry: () => void;
   onBack: () => void;
 }
@@ -40,6 +42,7 @@ export default function StepFourArticle({
   onApproveAndSchedule,
   onRequestEdits,
   onMarkdownChange,
+  onSummaryChange,
   onRetry,
   onBack,
 }: StepFourArticleProps) {
@@ -117,6 +120,22 @@ export default function StepFourArticle({
           Back
         </button>
       </div>
+
+      <Section title="Summary">
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <textarea
+            value={data.summary}
+            onChange={(event) => onSummaryChange(event.target.value)}
+            rows={2}
+            aria-label="Summary"
+            placeholder="One short sentence on what this article is about."
+            className="w-full resize-none text-sm text-slate-700 focus:outline-none"
+          />
+          <p className="mt-2 text-xs text-slate-400">
+            Shown as &quot;Summary:&quot; under the title on the website — one short, plain sentence.
+          </p>
+        </div>
+      </Section>
 
       <Section title="Meta Description">
         <div className="rounded-lg border border-slate-200 bg-white p-4">

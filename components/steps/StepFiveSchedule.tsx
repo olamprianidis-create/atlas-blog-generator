@@ -8,6 +8,7 @@ import Spinner from "../Spinner";
 export interface ArticleSummary {
   title: string;
   metaDescription: string;
+  summary: string;
   readingTimeMinutes: number;
   checklist: QualityCheckResult[];
 }
@@ -19,8 +20,10 @@ export interface ScheduleResult {
 
 interface StepFiveScheduleProps {
   article: ArticleSummary;
-  category: Category | null;
-  onCategoryChange: (category: Category) => void;
+  // Topics in the order picked; the first is the main topic.
+  categories: Category[];
+  onToggleCategory: (category: Category) => void;
+  onSummaryChange: (summary: string) => void;
   publishDate: string;
   publishTime: string;
   timezone: string;
@@ -299,8 +302,9 @@ function CreateEmailBlastButton({ articleId }: { articleId: string | null }) {
 
 export default function StepFiveSchedule({
   article,
-  category,
-  onCategoryChange,
+  categories,
+  onToggleCategory,
+  onSummaryChange,
   publishDate,
   publishTime,
   timezone,
@@ -326,7 +330,7 @@ export default function StepFiveSchedule({
   const passedCount = article.checklist.filter((c) => c.passed).length;
   const totalChecks = article.checklist.length;
   const preview = formatPublishPreview(publishDate, publishTime, timezone);
-  const canSchedule = !isSubmitting && !!category && !!publishDate && !!publishTime;
+  const canSchedule = !isSubmitting && categories.length > 0 && !!publishDate && !!publishTime;
 
   const publishNowBlock = (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -426,28 +430,46 @@ export default function StepFiveSchedule({
             <span className="font-medium text-slate-900">Meta description:</span>{" "}
             <span className="text-slate-700">{article.metaDescription}</span>
           </p>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-900">Category:</span>
-            {category ? (
-              <span className="text-slate-700">
-                {CATEGORIES.find((c) => c.value === category)?.label}
-              </span>
-            ) : (
-              <select
-                value={category ?? ""}
-                onChange={(event) => onCategoryChange(event.target.value as Category)}
-                className="rounded-md border border-slate-200 px-2 py-1 text-sm"
-              >
-                <option value="" disabled>
-                  Select a category...
-                </option>
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
+          <div>
+            <label htmlFor="article-summary" className="font-medium text-slate-900">
+              Summary:
+            </label>{" "}
+            <span className="text-xs text-slate-400">
+              one short sentence, shown under the title on the website
+            </span>
+            <textarea
+              id="article-summary"
+              value={article.summary}
+              onChange={(event) => onSummaryChange(event.target.value)}
+              rows={2}
+              placeholder="e.g. LA's mansion tax adds a 4–5.5% fee to big sales, so sellers near the line should price carefully."
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm text-slate-700"
+            />
+          </div>
+          <div>
+            <span className="font-medium text-slate-900">Topics:</span>{" "}
+            <span className="text-xs text-slate-400">pick one or more — the first is the main topic</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {CATEGORIES.map((c) => {
+                const index = categories.indexOf(c.value);
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => onToggleCategory(c.value)}
+                    aria-pressed={index !== -1}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      index !== -1
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"
+                    }`}
+                  >
                     {c.label}
-                  </option>
-                ))}
-              </select>
-            )}
+                    {index === 0 && categories.length > 1 ? " · Main" : ""}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <p>
             <span className="font-medium text-slate-900">Reading time:</span>{" "}
