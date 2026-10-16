@@ -67,6 +67,8 @@ interface ScheduledArticleRow {
   // Set once the LinkedIn auto-share went out (published articles only).
   linkedin_posted_at?: string | null;
   linkedin_post_urn?: string | null;
+  // Scheduled articles: whether it'll auto-post to LinkedIn on publish.
+  linkedin_auto_share?: boolean;
 }
 
 interface VideoUploadRow {
@@ -603,6 +605,8 @@ export default function CalendarPage() {
     lockedReason?: string;
     // Clicking the chip opens this (a LinkedIn post) instead of the day.
     href?: string;
+    // Hover text that replaces the default "Drag to another day" one.
+    hint?: string;
   }
 
   function getChipsForDate(dateStr: string): Chip[] {
@@ -651,6 +655,22 @@ export default function CalendarPage() {
         href: article.linkedin_post_urn
           ? `https://www.linkedin.com/feed/update/${article.linkedin_post_urn}/`
           : undefined,
+      });
+    }
+
+    // Upcoming LinkedIn auto-shares: unchecked, on the article's publish day
+    // (they go out the moment it publishes). Dragging one moves the article
+    // itself, so the article and its LinkedIn post always stay together.
+    for (const article of scheduledArticles) {
+      if (article.status !== "scheduled" || !article.linkedin_auto_share) continue;
+      if (!article.publish_date || article.publish_date.slice(0, 10) !== dateStr) continue;
+      chips.push({
+        key: `linkedin-upcoming-${article.id}`,
+        label: `LinkedIn: ${article.title}`,
+        colorClass: LINKEDIN_COLOR_CLASS,
+        checked: false,
+        dragPayload: { kind: "article", id: article.id },
+        hint: "Posts to LinkedIn automatically when the article publishes. Drag to move the article and this post together.",
       });
     }
 
@@ -867,7 +887,9 @@ export default function CalendarPage() {
                               title={
                                 chip.href
                                   ? "Open the LinkedIn post"
-                                  : (chip.lockedReason ?? (chip.dragPayload ? "Drag to another day to move it" : undefined))
+                                  : (chip.hint ??
+                                    chip.lockedReason ??
+                                    (chip.dragPayload ? "Drag to another day to move it" : undefined))
                               }
                               onDragStart={(event) => {
                                 if (!chip.dragPayload) return;
